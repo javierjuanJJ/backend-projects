@@ -21,8 +21,9 @@ const subArgs = process.argv.slice(3)
 switch (key) {
     case 'add':
 
-        if (subArgs.length === 1) {
-
+        if (subArgs.length === 4 && subArgs[0] === '--description' && subArgs[2] === '--amount') {
+            const description = subArgs[1]
+            const amount = subArgs[3]
         }
         else {
             console.error('❌ Solo se puede añadir una ID ')
@@ -41,7 +42,7 @@ switch (key) {
         break;
     case 'delete':
         if (subArgs.length === 2 && subArgs[0] === '--id') {
-
+            const id = subArgs[1]
         }
         else {
             console.error('❌ Solo se puede eliminar una ID ')
@@ -50,7 +51,7 @@ switch (key) {
         break;
     case '--category':
         if (subArgs.length === 1) {
-
+            const category = subArgs[0]
         }
         else {
             console.error('❌ Solo se puede marcar en progreso una ID ')
@@ -59,7 +60,7 @@ switch (key) {
         break;
     case '--month':
         if (subArgs.length === 1) {
-
+            const month = subArgs[0]
         }
         else {
             console.error('❌ Solo se puede marcar como hecho una ID ')
@@ -69,7 +70,7 @@ switch (key) {
 
     case '--export-csv':
         if (subArgs.length === 1) {
-
+            const csvFile = subArgs[0]
         }
         else {
             console.error('❌ Solo se puede marcar como hecho una ID ')
@@ -79,7 +80,7 @@ switch (key) {
 
     case '--import-csv':
         if (subArgs.length === 1) {
-
+            const csvFile = subArgs[0]
         }
         else {
             console.error('❌ Solo se puede marcar como hecho una ID ')
