@@ -1,3 +1,8 @@
+const fs = require('fs');
+const path = require('path');
+
+const expressesPath = path.join(process.cwd(), 'expresses.json');
+
 // Leer argumentos
 const args = process.argv.slice(2) // Solo argumentos relevantes
 
@@ -24,6 +29,29 @@ switch (key) {
         if (subArgs.length === 4 && subArgs[0] === '--description' && subArgs[2] === '--amount') {
             const description = subArgs[1]
             const amount = subArgs[3]
+
+            const newTask = {
+                id: crypto.randomUUID(),
+                description: description,
+                amount: amount,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            let tasks = [];
+
+            if (fs.existsSync(tasksPath)) {
+                const fileContent = fs.readFileSync(tasksPath, 'utf-8');
+                tasks = JSON.parse(fileContent);
+            }
+
+            tasks.push(newTask);
+
+            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
+
+            console.log('Task added:', newTask);
+
+
         }
         else {
             console.error('❌ Solo se puede añadir una ID ')

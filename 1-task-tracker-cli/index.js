@@ -1,3 +1,8 @@
+const fs = require('fs');
+const path = require('path');
+
+const tasksPath = path.join(process.cwd(), 'tasks.json');
+
 // Leer argumentos
 const args = process.argv.slice(2) // Solo argumentos relevantes
 
@@ -21,56 +26,77 @@ const subArgs = process.argv.slice(3)
 switch (key) {
     case 'add':
 
-    if (subArgs.length === 1) {
-        
-    }
-    else{
-        console.error('❌ Solo se puede añadir una ID ')
-        process.exit(1)
-    }
+        if (subArgs.length === 2) {
+            const newTask = {
+                id: crypto.randomUUID(),
+                description: subArgs[1],
+                status: "todo",
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            let tasks = [];
+
+            if (fs.existsSync(tasksPath)) {
+                const fileContent = fs.readFileSync(tasksPath, 'utf-8');
+                tasks = JSON.parse(fileContent);
+            }
+
+            tasks.push(newTask);
+
+            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
+
+            console.log('Task added:', newTask);
+
+
+        }
+        else {
+            console.error('❌ Solo se puede añadir una ID ')
+            process.exit(1)
+        }
 
         break;
     case 'update':
         if (subArgs.length === 2) {
-        
+
         }
-        else{
+        else {
             console.error('❌ Solo se puede eliminar una ID ')
             process.exit(1)
         }
         break;
     case 'delete':
         if (subArgs.length === 1) {
-        
+
         }
-        else{
+        else {
             console.error('❌ Solo se puede eliminar una ID ')
             process.exit(1)
         }
         break;
     case 'mark-in-progress':
         if (subArgs.length === 1) {
-        
+
         }
-        else{
+        else {
             console.error('❌ Solo se puede marcar en progreso una ID ')
             process.exit(1)
         }
         break;
     case 'mark-done':
         if (subArgs.length === 1) {
-        
+
         }
-        else{
+        else {
             console.error('❌ Solo se puede marcar como hecho una ID ')
             process.exit(1)
         }
         break;
     case 'list':
         if (subArgs.length === 1) {
-        
+
         }
-        else{
+        else {
             console.error('❌ Solo se listar un status ')
             process.exit(1)
         }
