@@ -1,20 +1,35 @@
-import Image from "next/image";
+import { useState } from "react";
+import React from "react";
 
-export default function Home() {
+import { ConverterForm } from "./components/ConverterForm";
+import { styles, tabLabels, tabs } from "./consts/UnitType";
+
+import { UnitType } from "./consts/UnitType";
+
+export default function App(): React.ReactElement {
+  const [active, setActive] = useState<UnitType>("length");
+
   return (
-    <div className="contenedor-pestanas">
-        <div className="pestanas">
-            <button className="pestana" data-tab="1">Primera Pestaña</button>
-            <button className="pestana" data-tab="2">Segunda Pestaña</button>
-            <button className="pestana" data-tab="3">Tercera Pestaña</button>
-            <button className="pestana" data-tab="4">Cuarta Pestaña</button>
+    <div style={styles.page}>
+      <div style={styles.container}>
+        <h1 style={styles.title}>Unit<span style={styles.titleAccent}>Converter</span></h1>
+        <p style={styles.subtitle}>Convert between units instantly</p>
+        <div style={styles.tabs}>
+          {tabs.map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActive(tab)}
+              style={{ ...styles.tab, ...(active === tab ? styles.tabActive : {}) }}
+            >
+              {tabLabels[tab]}
+            </button>
+          ))}
         </div>
-        <div className="contenido">
-            <div id="contenido-1" className="tab-content activo">Contenido de la Primera Pestaña</div>
-            <div id="contenido-2" className="tab-content">Contenido de la Segunda Pestaña</div>
-            <div id="contenido-3" className="tab-content">Contenido de la Tercera Pestaña</div>
-            <div id="contenido-4" className="tab-content">Contenido de la Cuarta Pestaña</div>
+        <div style={styles.content}>
+          <ConverterForm key={active} type={active} />
         </div>
+      </div>
     </div>
   );
 }
+
