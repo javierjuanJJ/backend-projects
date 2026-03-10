@@ -1,7 +1,7 @@
 ---
 layout: ../../pages/post2.astro
 title: Mi primer post
-date: 2026-03-10
+date: Tuesday, July 27 2021
 ---
 
 # Hola Astro

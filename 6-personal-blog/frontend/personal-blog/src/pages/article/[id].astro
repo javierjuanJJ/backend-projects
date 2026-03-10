@@ -1,0 +1,28 @@
+---
+export const prerender = false; // Not needed in 'server' mode
+import Layout from "../../layouts/BlogLayout.astro";
+const { id } = Astro.params;
+
+
+
+const posts = import.meta.glob('../posts/*.md', { eager: true });
+
+const post = posts[`../posts/${id}.md`];
+
+if (!post) {
+  throw new Response(null, { status: 404 });
+}
+
+const { Content, frontmatter } = post;
+
+---
+<h1>{id}</h1>
+
+
+<Layout>
+    <p>{post.frontmatter.title}</p>
+    <p>Date: {post.frontmatter.date}</p>
+  <div>
+    <div ><Content /></div>
+  </div>
+</Layout>

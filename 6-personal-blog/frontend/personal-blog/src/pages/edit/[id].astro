@@ -1,0 +1,30 @@
+---
+export const prerender = false; // Not needed in 'server' mode
+import Layout from "../../layouts/BlogLayout.astro";
+const { id } = Astro.params;
+
+
+
+const posts = import.meta.glob('../posts/*.md', { eager: true });
+
+const post = posts[`../posts/${id}.md`];
+
+if (!post) {
+  throw new Response(null, { status: 404 });
+}
+
+const { frontmatter } = post;
+const date = new Date(frontmatter.date).toISOString().split('T')[0];
+const title = post.frontmatter.title;
+const content = post.rawContent()
+
+---
+<h1>{id}</h1>
+
+
+<Layout>
+  <input type="text" value={title}/>
+  <input type="date" value={date}/>
+  <textarea rows="10"  set:text={content}/>
+  <p>{content}</p>
+</Layout>
