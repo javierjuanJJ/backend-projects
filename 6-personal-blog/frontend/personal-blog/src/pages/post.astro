@@ -1,0 +1,11 @@
+---
+import Layout from "../layouts/BlogLayout.astro";
+import greatPost from "./posts/page-1.md";
+---
+
+<Layout>
+    <p>{greatPost.frontmatter.title}</p>
+    <p>Written by: {greatPost.frontmatter.date}</p>
+
+    {greatPost.frontmatter.content}
+</Layout>
