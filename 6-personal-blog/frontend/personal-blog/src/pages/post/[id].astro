@@ -1,0 +1,17 @@
+---
+import Layout from "../layouts/BlogLayout.astro";
+import * as  greatPost from "./posts/page-1.md";
+import {Content} from "./posts/page-1.md";
+export const prerender = false
+const {id} = Astro.props;
+
+
+---
+
+<Layout>
+    <p>{greatPost.frontmatter.title}</p>
+    <p>Written by: {greatPost.frontmatter.date}</p>
+  <div>
+    <div ><Content/></div>
+  </div>
+</Layout>

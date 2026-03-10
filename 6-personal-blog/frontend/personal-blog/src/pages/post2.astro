@@ -1,0 +1,12 @@
+---
+import Layout from "../layouts/BlogLayout.astro";
+const {frontmatter} = Astro.props;
+---
+
+<Layout>
+    <p>{frontmatter.title}</p>
+    <p>Written by: {frontmatter.date}</p>
+  <div>
+    <slot />
+  </div>
+</Layout>
