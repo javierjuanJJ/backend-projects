@@ -4,6 +4,6 @@ const posts = Object.values(import.meta.glob('./posts/*.md', { eager: true }));
 
 <p>Post Archive:</p>
 <ul>
-  {posts.map(post => <li><a href={post.url}>{post.frontmatter.title}</a></li>)}
+  {posts.map(post => <li><a href={post.url}>{post.frontmatter.title} - {post.frontmatter.date}</a></li>)}
 </ul>
 
