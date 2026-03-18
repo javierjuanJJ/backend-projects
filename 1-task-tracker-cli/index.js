@@ -1,158 +1,83 @@
-const fs = require('fs');
-const path = require('path');
+/**
+ * @file index.js
+ * @description Punto de entrada del CLI de gestión de tareas.
+ *              Parsea los argumentos, los valida y delega la ejecución
+ *              al módulo taskManager.
+ *
+ * Uso:
+ *   node index.js add "<descripción>"
+ *   node index.js update <id> "<nueva descripción>"
+ *   node index.js delete <id>
+ *   node index.js mark-in-progress <id>
+ *   node index.js mark-done <id>
+ *   node index.js list [todo|in-progress|done]
+ */
 
-const tasksPath = path.join(process.cwd(), 'tasks.json');
+const { validateActionPresence, validateAction, validateSubArgs } = require('./validator');
+const { addTask, updateTask, deleteTask, markInProgress, markDone, listTasks } = require('./taskManager');
 
-// Leer argumentos
-const args = process.argv.slice(2) // Solo argumentos relevantes
+// ─────────────────────────────────────────────
+//  Parseo de argumentos
+// ─────────────────────────────────────────────
 
-const allowedFilters = ['add', 'update', 'delete', 'mark-in-progress', 'mark-done', 'list']
+/** Argumentos relevantes: se omiten "node" y la ruta del script */
+const args    = process.argv.slice(2);
 
-if (args.length < 2) {
-    console.error('❌ Pocos parámetros. Uso:\nnode app.js <directorio> ', allowedFilters)
-    process.exit(1)
+/** Primera palabra: la acción a ejecutar */
+const action  = args[0];
+
+/** Resto de palabras: parámetros propios de cada acción */
+const subArgs = args.slice(1);
+
+// ─────────────────────────────────────────────
+//  Validación y ejecución
+// ─────────────────────────────────────────────
+
+try {
+    // 1. Verificar que se pasó al menos una acción
+    validateActionPresence(args);
+
+    // 2. Verificar que la acción sea válida
+    validateAction(action);
+
+    // 3. Verificar que los sub-argumentos sean correctos para la acción
+    validateSubArgs(action, subArgs);
+
+    // 4. Ejecutar la acción correspondiente
+    switch (action) {
+        case 'add':
+            addTask(subArgs[0]);
+            break;
+
+        case 'update':
+            updateTask(subArgs[0], subArgs[1]);
+            break;
+
+        case 'delete':
+            deleteTask(subArgs[0]);
+            break;
+
+        case 'mark-in-progress':
+            markInProgress(subArgs[0]);
+            break;
+
+        case 'mark-done':
+            markDone(subArgs[0]);
+            break;
+
+        case 'list':
+            // subArgs[0] puede ser undefined → listTasks mostrará todas
+            listTasks(subArgs[0] ?? null);
+            break;
+
+        default:
+            // No debería llegar aquí gracias a validateAction, pero por seguridad:
+            throw new Error(`Acción no manejada: "${action}"`);
+    }
+
+} catch (err) {
+    // Captura centralizada: cualquier error lanzado en validadores o en la
+    // capa de negocio llega aquí con un mensaje claro para el usuario.
+    console.error(`❌ Error: ${err.message}`);
+    process.exit(1);
 }
-
-// Asignar parámetros
-const actionParameter = args[0] ?? '.'
-
-if (!allowedFilters.includes(actionParameter)) {
-    console.error('❌ Filtro inválido. Usa: ', allowedFilters)
-    process.exit(1)
-}
-
-
-const subArgs = process.argv.slice(3)
-switch (key) {
-    case 'add':
-
-        if (subArgs.length === 2) {
-            const newTask = {
-                id: crypto.randomUUID(),
-                description: subArgs[1],
-                status: "todo",
-                createdAt: new Date().toISOString(),
-                updatedAt: new Date().toISOString()
-            };
-
-            let tasks = [];
-
-            if (fs.existsSync(tasksPath)) {
-                const fileContent = fs.readFileSync(tasksPath, 'utf-8');
-                tasks = JSON.parse(fileContent);
-            }
-
-            tasks.push(newTask);
-
-            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
-
-            console.log('Task added:', newTask);
-
-
-        }
-        else {
-            console.error('❌ Solo se puede añadir una ID ')
-            process.exit(1)
-        }
-
-        break;
-    case 'update':
-        if (subArgs.length === 2) {
-            const [id, newDescription] = subArgs;
-            const taskIndex = tasks.findIndex(t => t.id === id);
-            if (taskIndex === -1) {
-                console.error('❌ No se encontró la tarea con ID:', id);
-                process.exit(1);
-            }
-            tasks[taskIndex].description = newDescription;
-            tasks[taskIndex].updatedAt = new Date().toISOString();
-            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
-            console.log('✅ Tarea actualizada:', tasks[taskIndex]);
-        }
-        else {
-            console.error('❌ Solo se puede eliminar una ID ')
-            process.exit(1)
-        }
-        break;
-
-    case 'delete':
-        if (subArgs.length === 1) {
-            const [id] = subArgs;
-            const taskIndex = tasks.findIndex(t => t.id === id);
-            if (taskIndex === -1) {
-                console.error('❌ No se encontró la tarea con ID:', id);
-                process.exit(1);
-            }
-            const deleted = tasks.splice(taskIndex, 1);
-            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
-            console.log('✅ Tarea eliminada:', deleted[0]);
-        }
-        else {
-            console.error('❌ Solo se puede eliminar una ID ')
-            process.exit(1)
-        }
-        break;
-
-    case 'mark-in-progress':
-        if (subArgs.length === 1) {
-            const [id] = subArgs;
-            const taskIndex = tasks.findIndex(t => t.id === id);
-            if (taskIndex === -1) {
-                console.error('❌ No se encontró la tarea con ID:', id);
-                process.exit(1);
-            }
-            tasks[taskIndex].status = 'in-progress';
-            tasks[taskIndex].updatedAt = new Date().toISOString();
-            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
-            console.log('✅ Tarea marcada en progreso:', tasks[taskIndex]);
-        }
-        else {
-            console.error('❌ Solo se puede marcar en progreso una ID ')
-            process.exit(1)
-        }
-        break;
-
-    case 'mark-done':
-        if (subArgs.length === 1) {
-            const [id] = subArgs;
-            const taskIndex = tasks.findIndex(t => t.id === id);
-            if (taskIndex === -1) {
-                console.error('❌ No se encontró la tarea con ID:', id);
-                process.exit(1);
-            }
-            tasks[taskIndex].status = 'done';
-            tasks[taskIndex].updatedAt = new Date().toISOString();
-            fs.writeFileSync(tasksPath, JSON.stringify(tasks, null, 2), 'utf-8');
-            console.log('✅ Tarea marcada como hecha:', tasks[taskIndex]);
-        }
-        else {
-            console.error('❌ Solo se puede marcar como hecho una ID ')
-            process.exit(1)
-        }
-        break;
-
-    case 'list':
-        if (subArgs.length === 1) {
-            const [statusFilter] = subArgs;
-            const validStatuses = ['todo', 'in-progress', 'done'];
-            if (!validStatuses.includes(statusFilter)) {
-                console.error('❌ Status no válido. Usa: todo, in-progress, done');
-                process.exit(1);
-            }
-            const filtered = tasks.filter(t => t.status === statusFilter);
-            if (filtered.length === 0) {
-                console.log(`📋 No hay tareas con status "${statusFilter}"`);
-            } else {
-                console.log(`📋 Tareas con status "${statusFilter}":`);
-                filtered.forEach(t => console.log(` - [${t.id}] ${t.description}`));
-            }
-        }
-        else {
-            console.error('❌ Solo se listar un status ')
-            process.exit(1)
-        }
-        break;
-    default:
-        break;
-}
-
