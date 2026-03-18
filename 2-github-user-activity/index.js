@@ -1,92 +1,38 @@
-const args = process.argv.slice(2) // Solo argumentos relevantes
+/**
+ * @file index.js
+ * @description Punto de entrada principal de la CLI.
+ * Valida los argumentos y orquesta la obtención y presentación
+ * de la actividad pública de un usuario de GitHub.
+ */
 
-if (args.length !== 1) {
-    console.error('❌ Solo se puede poner un parametro')
-    process.exit(1)
-}
+import { fetchUserEvents } from "./api/githubClient.js";
+import { formatEvents } from "./formatter/eventFormatter.js";
+import { validateArgs } from "./cli/args.js";
 
-// 1. Recuperar la carpeta a listar
-const GITHUB_USERNAME = args[0];
-const GITHUB_API_URL = `https://api.github.com/users/${GITHUB_USERNAME}/events`;
+/**
+ * Función principal que ejecuta la CLI.
+ * Gestiona el flujo completo: validación → fetch → formato → salida.
+ */
+async function main() {
+    // 1. Validar y obtener el nombre de usuario desde los argumentos
+    const username = validateArgs(process.argv.slice(2));
 
+    // 2. Obtener los eventos del usuario desde la API de GitHub
+    const events = await fetchUserEvents(username);
 
-try {
-    const response = await fetch(GITHUB_API_URL, {
-        headers: {
-            Accept: "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28",
-        },
-    });
+    // 3. Si no hay eventos (p.ej. respuesta 304), salir sin error
+    if (!events) return;
 
-    if (response.status === 304) {
-        console.log("304 Not Modified - Using cached data.");
-        return;
-    }
+    // 4. Formatear los eventos en líneas legibles
+    const lines = formatEvents(events);
 
-    if (response.status === 403) {
-        const error = await response.json();
-        console.error("403 Forbidden:", error.message);
-        return;
-    }
-
-    if (response.status === 503) {
-        console.error("503 Service Unavailable - GitHub API is down, try again later.");
-        return;
-    }
-
-    if (!response.ok) {
-        console.error(`Unexpected error: HTTP ${response.status}`);
-        return;
-    }
-
-    // 200 OK
-    const events = await response.json();
-    const formatted = formatEvents(events);
-
+    // 5. Imprimir la salida
     console.log("Output:");
-    formatted.forEach((line) => console.log(line));
-
-} catch (error) {
-    console.error("Network error:", error.message);
+    lines.forEach((line) => console.log(line));
 }
 
-function formatEvents(events) {
-    const output = [];
-
-    for (const event of events) {
-        const repo = event.repo.name;
-
-        switch (event.type) {
-            case "PushEvent": {
-                const commitCount = event.payload.commits?.length ?? 0;
-                output.push(`- Pushed ${commitCount} commit${commitCount !== 1 ? "s" : ""} to ${repo}`);
-                break;
-            }
-            case "IssuesEvent": {
-                const action = event.payload.action;
-                if (action === "opened") {
-                    output.push(`- Opened a new issue in ${repo}`);
-                } else {
-                    output.push(`- ${action} an issue in ${repo}`);
-                }
-                break;
-            }
-            case "WatchEvent":
-                output.push(`- Starred ${repo}`);
-                break;
-            case "ForkEvent":
-                output.push(`- Forked ${repo}`);
-                break;
-            case "PullRequestEvent":
-                output.push(`- ${event.payload.action} a pull request in ${repo}`);
-                break;
-            case "CreateEvent":
-                output.push(`- Created a new ${event.payload.ref_type} in ${repo}`);
-                break;
-            default:
-                output.push(`- ${event.type.replace("Event", "")} activity in ${repo}`);
-        }
-    }
-
-    return output;
-}
+// Ejecutar y capturar errores no controlados a nivel de proceso
+main().catch((err) => {
+    console.error("❌ Error inesperado:", err.message);
+    process.exit(1);
+});
