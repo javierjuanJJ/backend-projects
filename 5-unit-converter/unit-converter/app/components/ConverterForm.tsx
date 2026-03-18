@@ -72,4 +72,3 @@ export function ConverterForm({ type }: ConverterFormProps): React.ReactElement 
     </div>
   );
 }
-
