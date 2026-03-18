@@ -1,0 +1,356 @@
+---
+export const prerender = false
+// src/components/PostEditor.astro
+export interface Props {
+  id?: string;
+  title?: string;
+  date?: string;
+  description?: string;
+  tags?: string[];
+  content?: string;
+}
+
+const {
+  id = '',
+  title = '',
+  date = new Date().toISOString().split('T')[0],
+  description = '',
+  tags = [],
+  content = '',
+} = Astro.props;
+
+const isEdit = Boolean(id);
+---
+
+<div class="editor animate"
+  data-post-id={id}
+  data-is-edit={isEdit ? 'true' : 'false'}
+>
+  <div class="editor__header">
+    <div class="editor__badge">
+      <span class="badge-dot"></span>
+      {isEdit ? 'Editando post' : 'Nuevo post'}
+    </div>
+    <div class="editor__actions">
+      <button id="btn-save" class="btn btn-save" type="button">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+        {isEdit ? 'Guardar cambios' : 'Publicar'}
+      </button>
+      {isEdit && (
+        <button id="btn-delete" class="btn btn-delete" type="button">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Eliminar
+        </button>
+      )}
+    </div>
+  </div>
+
+  <div class="editor__body">
+    <!-- Sidebar: metadata -->
+    <aside class="editor__sidebar">
+      <div class="sidebar-section">
+        <p class="sidebar-label">Metadatos</p>
+
+        <label class="field">
+          <span class="field__label">Título <em>*</em></span>
+          <input id="f-title" class="field__ctrl" type="text" value={title} placeholder="Mi artículo..." />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Fecha de publicación</span>
+          <input id="f-date" class="field__ctrl" type="date" value={date} />
+        </label>
+
+        <label class="field">
+          <span class="field__label">Descripción</span>
+          <textarea id="f-desc" class="field__ctrl" rows="3" placeholder="Un resumen breve...">{description}</textarea>
+        </label>
+
+        <label class="field">
+          <span class="field__label">Tags <small>(separados por coma)</small></span>
+          <input id="f-tags" class="field__ctrl" type="text" value={tags.join(', ')} placeholder="astro, web, dev" />
+        </label>
+
+        {isEdit && (
+          <div class="field field--slug">
+            <span class="field__label">Slug</span>
+            <code class="slug-chip">{id}</code>
+          </div>
+        )}
+      </div>
+    </aside>
+
+    <!-- Main: content editor -->
+    <div class="editor__content">
+      <div class="content-toolbar">
+        <span class="toolbar-label">Contenido</span>
+        <span class="toolbar-badge">Markdown</span>
+      </div>
+      <textarea id="f-content" class="editor__textarea" spellcheck="false" placeholder="# Título del post&#10;&#10;Escribe tu contenido aquí en **Markdown**...&#10;&#10;## Sección&#10;&#10;Párrafo de texto.">{content}</textarea>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+</div>
+
+<script>
+  const editorEl = document.querySelector('.editor') as HTMLElement;
+  const POST_ID  = editorEl.dataset.postId  ?? '';
+  const IS_EDIT  = editorEl.dataset.isEdit  === 'true';
+
+  const get = (id: string) => document.getElementById(id) as HTMLInputElement | HTMLTextAreaElement | null;
+
+  function showToast(msg: string, type: 'success' | 'error' = 'success') {
+    const t = document.getElementById('toast')!;
+    t.textContent = msg;
+    t.className = `toast toast--${type} toast--visible`;
+    clearTimeout((t as any)._timer);
+    (t as any)._timer = setTimeout(() => t.classList.remove('toast--visible'), 3500);
+  }
+
+  // Safely parse response — returns {ok, status, data} even if body is not JSON
+  async function safeJson(res: Response) {
+    const text = await res.text();
+    try {
+      return { ok: res.ok, status: res.status, data: JSON.parse(text) };
+    } catch {
+      return { ok: false, status: res.status, data: { error: `Error ${res.status}: ${text.slice(0, 120)}` } };
+    }
+  }
+
+  function getData() {
+    return {
+      title:       (get('f-title') as HTMLInputElement).value.trim(),
+      date:        (get('f-date')  as HTMLInputElement).value,
+      description: (get('f-desc') as HTMLTextAreaElement).value.trim(),
+      tags:        (get('f-tags') as HTMLInputElement).value
+                     .split(',').map((s: string) => s.trim()).filter(Boolean),
+      content:     (get('f-content') as HTMLTextAreaElement).value,
+    };
+  }
+
+  // ── Save ──────────────────────────────────────────────────────────────────
+  document.getElementById('btn-save')!.addEventListener('click', async () => {
+    const data = getData();
+    if (!data.title) { showToast('El título es obligatorio', 'error'); return; }
+
+    const btn = document.getElementById('btn-save') as HTMLButtonElement;
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+
+    try {
+      const url    = IS_EDIT ? `/api/posts/${POST_ID}` : '/api/posts';
+      const method = IS_EDIT ? 'PUT' : 'POST';
+
+      const res  = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      const { ok, data: json } = await safeJson(res);
+      if (!ok) throw new Error(json.error || 'Error desconocido');
+
+      showToast(json.message);
+      if (!IS_EDIT && json.id) {
+        setTimeout(() => { window.location.href = `/admin/edit/${json.id}`; }, 1000);
+      }
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> ${IS_EDIT ? 'Guardar cambios' : 'Publicar'}`;
+    }
+  });
+
+  // ── Delete ────────────────────────────────────────────────────────────────
+  document.getElementById('btn-delete')?.addEventListener('click', async () => {
+    if (!confirm('¿Seguro que quieres eliminar este post? Esta acción no se puede deshacer.')) return;
+    try {
+      const res  = await fetch(`/api/posts/${POST_ID}`, { method: 'DELETE' });
+      const { ok, data: json } = await safeJson(res);
+      if (!ok) throw new Error(json.error);
+      showToast(json.message);
+      setTimeout(() => { window.location.href = '/'; }, 1000);
+    } catch (err: any) {
+      showToast(err.message, 'error');
+    }
+  });
+</script>
+
+<style>
+  .editor {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--r-lg);
+    overflow: hidden;
+  }
+
+  /* Header bar */
+  .editor__header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 1rem 1.5rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.02);
+  }
+
+  .editor__badge {
+    display: flex; align-items: center; gap: .6rem;
+    font-family: var(--mono); font-size: .75rem;
+    color: var(--muted); letter-spacing: .05em;
+  }
+  .badge-dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+  }
+
+  .editor__actions { display: flex; gap: .6rem; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: .5rem;
+    font-family: var(--sans); font-size: .8rem;
+    font-weight: 600; letter-spacing: .04em;
+    padding: .5rem 1.1rem; border-radius: var(--r);
+    border: 1px solid transparent; cursor: pointer;
+    transition: all .18s;
+  }
+  .btn:active { transform: scale(.97); }
+
+  .btn-save {
+    background: var(--accent); color: #fff;
+    box-shadow: 0 0 16px rgba(124,106,247,.3);
+  }
+  .btn-save:hover { background: var(--accent2); box-shadow: 0 0 20px rgba(124,106,247,.45); }
+  .btn-save:disabled { opacity: .6; cursor: not-allowed; }
+
+  .btn-delete {
+    background: transparent; color: var(--red);
+    border-color: rgba(248,113,113,.3);
+  }
+  .btn-delete:hover { background: rgba(248,113,113,.08); }
+
+  /* Body */
+  .editor__body {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    min-height: 560px;
+  }
+
+  /* Sidebar */
+  .editor__sidebar {
+    border-right: 1px solid var(--border);
+    padding: 1.5rem;
+    overflow-y: auto;
+    background: rgba(255,255,255,.015);
+  }
+
+  .sidebar-section { display: flex; flex-direction: column; gap: 1rem; }
+
+  .sidebar-label {
+    font-family: var(--mono); font-size: .68rem;
+    font-weight: 500; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+    padding-bottom: .75rem;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: .25rem;
+  }
+
+  .field { display: flex; flex-direction: column; gap: .4rem; }
+
+  .field__label {
+    font-size: .73rem; font-weight: 600;
+    letter-spacing: .04em; text-transform: uppercase;
+    color: var(--muted);
+  }
+  .field__label em { color: var(--red); font-style: normal; }
+  .field__label small { text-transform: none; font-weight: 400; font-size: .85em; }
+
+  .field__ctrl {
+    font-family: var(--sans); font-size: .88rem;
+    color: var(--text);
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: .55rem .75rem;
+    width: 100%; resize: vertical;
+    transition: border-color .2s, box-shadow .2s;
+  }
+  .field__ctrl:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(124,106,247,.15);
+  }
+  .field__ctrl::placeholder { color: var(--subtle); }
+
+  .field--slug { margin-top: .5rem; }
+  .slug-chip {
+    font-family: var(--mono); font-size: .78rem;
+    background: var(--bg); color: var(--muted);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: .45rem .75rem;
+    word-break: break-all;
+    display: block;
+  }
+
+  /* Content editor */
+  .editor__content {
+    display: flex; flex-direction: column;
+  }
+
+  .content-toolbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: .75rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+    background: rgba(255,255,255,.015);
+  }
+
+  .toolbar-label {
+    font-family: var(--mono); font-size: .68rem;
+    font-weight: 500; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--muted);
+  }
+
+  .toolbar-badge {
+    font-family: var(--mono); font-size: .65rem;
+    background: rgba(124,106,247,.12); color: var(--accent2);
+    border: 1px solid rgba(124,106,247,.2);
+    padding: .15rem .55rem; border-radius: 12px;
+    letter-spacing: .06em;
+  }
+
+  .editor__textarea {
+    flex: 1;
+    font-family: var(--mono); font-size: .88rem;
+    line-height: 1.8; color: var(--text);
+    background: transparent;
+    border: none;
+    padding: 1.25rem 1.5rem;
+    resize: none;
+    tab-size: 2;
+  }
+  .editor__textarea:focus { outline: none; }
+  .editor__textarea::placeholder { color: var(--subtle); }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 2rem; right: 2rem;
+    font-family: var(--sans); font-size: .85rem; font-weight: 500;
+    padding: .85rem 1.4rem; border-radius: var(--r);
+    box-shadow: 0 8px 32px rgba(0,0,0,.5);
+    opacity: 0; pointer-events: none;
+    transform: translateY(10px);
+    transition: opacity .25s, transform .25s;
+    z-index: 999;
+    background: var(--surface2); color: var(--text);
+    border: 1px solid var(--border2);
+  }
+  .toast--visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+  .toast--error { background: rgba(248,113,113,.15); color: var(--red); border-color: rgba(248,113,113,.3); }
+  .toast--success { background: rgba(74,222,128,.1); color: var(--green); border-color: rgba(74,222,128,.25); }
+
+  @media (max-width: 720px) {
+    .editor__body { grid-template-columns: 1fr; }
+    .editor__sidebar { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+</style>

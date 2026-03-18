@@ -1,0 +1,19 @@
+---
+// src/pages/admin/index.astro
+export const prerender = false;
+import Layout from '../../layouts/BlogLayout.astro';
+import PostEditor from '../../components/PostEditor.astro';
+---
+
+<Layout title="Nuevo post — bitácora">
+  <div class="admin-wrap">
+    <PostEditor />
+  </div>
+</Layout>
+
+<style>
+  .admin-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+</style>

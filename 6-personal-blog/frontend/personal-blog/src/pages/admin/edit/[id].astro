@@ -1,0 +1,37 @@
+---
+// src/pages/admin/edit/[id].astro
+export const prerender = false;
+import Layout from '../../../layouts/BlogLayout.astro';
+import PostEditor from '../../../components/PostEditor.astro';
+
+const { id } = Astro.params;
+
+let post: any = null;
+try {
+  const res = await fetch(new URL(`/api/posts/${id}`, Astro.url));
+  if (!res.ok) return Astro.redirect('/');
+  post = await res.json();
+} catch {
+  return Astro.redirect('/');
+}
+---
+
+<Layout title={`Editar: ${post.frontmatter.title} — bitácora`}>
+  <div class="admin-wrap">
+    <PostEditor
+      id={post.id}
+      title={post.frontmatter.title}
+      date={post.frontmatter.date}
+      description={post.frontmatter.description}
+      tags={post.frontmatter.tags ?? []}
+      content={post.content}
+    />
+  </div>
+</Layout>
+
+<style>
+  .admin-wrap {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+</style>

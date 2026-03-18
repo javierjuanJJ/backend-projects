@@ -1,11 +1,143 @@
 ---
-import Welcome from '../components/Welcome.astro';
+// src/pages/index.astro
+export const prerender = false;
 import Layout from '../layouts/BlogLayout.astro';
+import PostCard from '../components/PostCard.astro';
 
-// Welcome to Astro! Wondering what to do next? Check out the Astro documentation at https://docs.astro.build
-// Don't want to use any of this? Delete everything in this file, the `assets`, `components`, and `layouts` directories, and start fresh.
+let posts: any[] = [];
+let error: string | null = null;
+
+try {
+  // Call our own Astro API endpoint
+  const res = await fetch(new URL('/api/posts', Astro.url));
+  if (!res.ok) throw new Error('No se pudo conectar con la API interna');
+  posts = await res.json();
+} catch (e: any) {
+  error = e.message;
+}
 ---
 
-<Layout>
-	<Welcome />
+<Layout title="bitácora" description="Mi blog personal">
+  <div class="home">
+    <div class="home__hero animate">
+      <p class="home__eyebrow">archivo personal</p>
+      <h1 class="home__title">bitácora</h1>
+      <p class="home__subtitle">
+        Notas, artículos y reflexiones sobre desarrollo web.
+      </p>
+    </div>
+
+    {error ? (
+      <div class="error-card animate delay-1">
+        <div class="error-card__icon">⚠</div>
+        <div>
+          <strong>Error al cargar posts</strong>
+          <p>{error}</p>
+        </div>
+      </div>
+    ) : posts.length === 0 ? (
+      <div class="empty-state animate delay-1">
+        <p class="empty-state__glyph">✦</p>
+        <p class="empty-state__msg">Todavía no hay posts publicados.</p>
+        <a href="/admin" class="empty-state__cta">Crea el primero →</a>
+      </div>
+    ) : (
+      <>
+        <div class="posts-meta animate delay-1">
+          <span class="posts-count">{posts.length} {posts.length === 1 ? 'artículo' : 'artículos'}</span>
+        </div>
+        <div class="posts-grid">
+          {posts.map((post, i) => (
+            <PostCard
+              id={post.id}
+              title={post.title}
+              date={post.date}
+              description={post.description}
+              tags={post.tags}
+              index={i}
+            />
+          ))}
+        </div>
+      </>
+    )}
+  </div>
 </Layout>
+
+<style>
+  .home {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .home__hero {
+    margin-bottom: 3.5rem;
+    padding-bottom: 3rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .home__eyebrow {
+    font-family: var(--mono);
+    font-size: .72rem; letter-spacing: .14em;
+    text-transform: uppercase; color: var(--accent2);
+    margin-bottom: .75rem;
+  }
+
+  .home__title {
+    font-family: var(--serif);
+    font-size: clamp(3rem, 7vw, 5rem);
+    line-height: 1; letter-spacing: -.05em;
+    color: var(--text);
+    margin-bottom: 1rem;
+  }
+
+  .home__subtitle {
+    font-size: 1.05rem; color: var(--muted);
+    max-width: 46ch; line-height: 1.6;
+  }
+
+  .posts-meta {
+    display: flex; align-items: center;
+    justify-content: space-between;
+    margin-bottom: 1.5rem;
+  }
+
+  .posts-count {
+    font-family: var(--mono); font-size: .75rem;
+    color: var(--muted); letter-spacing: .06em;
+  }
+
+  .posts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.25rem;
+  }
+
+  .error-card {
+    display: flex; align-items: flex-start; gap: 1rem;
+    background: rgba(248,113,113,.07);
+    border: 1px solid rgba(248,113,113,.2);
+    border-radius: var(--r-lg);
+    padding: 1.25rem 1.5rem;
+    color: var(--red); font-size: .9rem;
+  }
+  .error-card__icon { font-size: 1.3rem; flex-shrink: 0; }
+  .error-card strong { display: block; margin-bottom: .25rem; font-weight: 600; }
+  .error-card p { color: var(--muted); }
+
+  .empty-state {
+    text-align: center;
+    padding: 6rem 2rem;
+    color: var(--muted);
+  }
+  .empty-state__glyph { font-size: 2.5rem; color: var(--border); margin-bottom: 1rem; }
+  .empty-state__msg { font-size: 1rem; margin-bottom: 1.5rem; }
+  .empty-state__cta {
+    display: inline-block;
+    color: var(--accent2); text-decoration: none;
+    font-weight: 600; font-size: .9rem;
+    border: 1px solid rgba(124,106,247,.3);
+    padding: .6rem 1.2rem; border-radius: var(--r);
+    transition: background .2s;
+  }
+  .empty-state__cta:hover { background: rgba(124,106,247,.1); }
+</style>

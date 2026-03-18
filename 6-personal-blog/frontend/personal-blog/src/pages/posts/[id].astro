@@ -1,0 +1,69 @@
+---
+// src/pages/posts/[id].astro
+export const prerender = false;
+import Layout from '../../layouts/BlogLayout.astro';
+import PostHeader from '../../components/PostHeader.astro';
+
+const { id } = Astro.params;
+
+
+// 1. Fetch metadata from our internal API
+let frontmatter: any = null;
+try {
+  const res = await fetch(new URL(`/api/posts/${id}`, Astro.url));
+  if (!res.ok) return Astro.redirect('/404');
+  const data = await res.json();
+  frontmatter = data.frontmatter;
+} catch {
+  return Astro.redirect('/404');
+}
+
+// 2. Render content via local glob (Astro's static markdown rendering)
+const posts = import.meta.glob('../posts/*.md', { eager: true });
+const post = posts[`../posts/${id}.md`] as any;
+
+const Content = post?.Content ?? null;
+---
+
+<Layout
+  title={`${frontmatter.title} — bitácora`}
+  description={frontmatter.description}
+>
+  <article class="post-article">
+    <PostHeader
+      id={id!}
+      title={frontmatter.title}
+      date={frontmatter.date}
+      description={frontmatter.description}
+      tags={frontmatter.tags ?? []}
+    />
+
+    <div class="prose post-content animate delay-2">
+      {Content
+        ? <Content />
+        : <p class="no-preview">Vista previa no disponible para posts recién creados. El archivo .md se ha guardado correctamente.</p>
+      }
+    </div>
+  </article>
+</Layout>
+
+<style>
+  .post-article {
+    max-width: 780px;
+    margin: 0 auto;
+  }
+
+  .post-content {
+    padding-top: 1rem;
+  }
+
+  .no-preview {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--r);
+    padding: 1rem 1.25rem;
+    color: var(--muted);
+    font-style: italic;
+    font-size: .9rem;
+  }
+</style>

@@ -13,6 +13,12 @@
   },
   "dependencies": {
     "@astrojs/markdown-remark": "^7.0.0",
-    "astro": "^6.0.0"
+    "astro": "^6.0.0",
+    "fs": "^0.0.1-security",
+    "gray-matter": "^4.0.3",
+    "path": "^0.12.7"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0"
   }
 }
