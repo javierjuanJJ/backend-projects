@@ -1,14 +1,16 @@
 // lib/prisma.js
-const { PrismaClient } = require('../app/generated/prisma/client')
+// Singleton de Prisma Client — evita múltiples instancias en desarrollo (hot-reload)
 
-const globalForPrisma = global
+import { PrismaClient } from '@/app/generated/prisma/client'
+
+const globalForPrisma = globalThis
 
 const prisma =
-  globalForPrisma.prisma ||
+  globalForPrisma.prisma ??
   new PrismaClient({
     log: process.env.NODE_ENV === 'development' ? ['query', 'error', 'warn'] : ['error'],
   })
 
 if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = prisma
 
-module.exports = prisma
+export default prisma
