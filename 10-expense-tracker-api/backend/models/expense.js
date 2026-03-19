@@ -1,83 +1,98 @@
+import prisma from '../lib/prisma.js'
+import { DEFAULTS } from '../config.js'
 
-export class ExpensesModel {
-  static async getAll({ text, title, level, limit = 10, technology, offset = 0 }) {
-    let filteredJobs = jobs
+export class ExpenseModel {
+  /**
+   * Devuelve todos los gastos del usuario con filtros opcionales.
+   * Soporta: búsqueda por texto en title/description, rango de monto y paginación.
+   *
+   * @param {object} opts
+   * @param {number}  opts.userId
+   * @param {string}  [opts.search]     - texto libre en title OR description
+   * @param {number}  [opts.minAmount]
+   * @param {number}  [opts.maxAmount]
+   * @param {number}  [opts.limit]
+   * @param {number}  [opts.offset]
+   */
+  static async getAll({
+    userId,
+    search,
+    minAmount,
+    maxAmount,
+    limit  = DEFAULTS.LIMIT_PAGINATION,
+    offset = DEFAULTS.LIMIT_OFFSET,
+  }) {
+    const where = { userId: Number(userId) }
 
-    if (text) {
-      const searchTerm = text.toLowerCase()
-      filteredJobs = filteredJobs.filter(job =>
-        job.titulo.toLowerCase().includes(searchTerm) || job.descripcion.toLowerCase().includes(searchTerm)
-      )
+    // Búsqueda de cadena de texto en title O description completo
+    if (search) {
+      where.OR = [
+        { title:       { contains: search, mode: 'insensitive' } },
+        { description: { contains: search, mode: 'insensitive' } },
+      ]
     }
 
-    if (technology) {
-      filteredJobs = filteredJobs.filter(job =>
-        job.tecnologias.includes(technology)
-      )
+    // Rango de monto
+    if (minAmount !== undefined || maxAmount !== undefined) {
+      where.amount = {}
+      if (minAmount !== undefined) where.amount.gte = Number(minAmount)
+      if (maxAmount !== undefined) where.amount.lte = Number(maxAmount)
     }
 
-    const limitNumber = Number(limit)
-    const offsetNumber = Number(offset)
+    const expenses = await prisma.expense.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+      take:    Number(limit),
+      skip:    Number(offset),
+    })
 
-    const paginatedJobs = filteredJobs.slice(offsetNumber, offsetNumber + limitNumber)
-
-    return paginatedJobs
+    return expenses
   }
 
-  static async getById(id) {
-    const job = jobs.find(job => job.id === id)
-    return job
+  /**
+   * Devuelve un gasto por ID (solo si pertenece al usuario autenticado)
+   */
+  static async getById(id, userId) {
+    return prisma.expense.findFirst({
+      where: { id: Number(id), userId: Number(userId) },
+    })
   }
 
-  static async getByIndexId(id) {
-    return jobs.findIndex(job => job.id === id);
+  /**
+   * Crea un nuevo gasto asociado al usuario
+   */
+  static async create({ title, description, amount, userId }) {
+    return prisma.expense.create({
+      data: { title, description, amount: Number(amount), userId: Number(userId) },
+    })
   }
 
-  static async create({ titulo, empresa, ubicacion, data }) {
-    const newJob = {
-      id: crypto.randomUUID(),
-      titulo,
-      empresa,
-      ubicacion,
-      data
-    }
-
-    jobs.push(newJob) // lo haremos en una base de datos con un INSERT
-
-    return newJob
+  /**
+   * Reemplaza todos los campos (PUT)
+   */
+  static async update({ id, title, description, amount }) {
+    return prisma.expense.update({
+      where: { id: Number(id) },
+      data:  { title, description, amount: Number(amount) },
+    })
   }
 
-  static async update({ id, titulo, empresa, ubicacion, data }) {
-
-    const index = await ExpensesModel.getByIndexId(id);
-
-    // Creamos el objeto actualizado
-    const updatedJob = {
-      ...jobs[index],  // mantenemos lo que haya
-      titulo,
-      empresa,
-      ubicacion,
-      data
-    };
-
-    // Persistimos en memoria
-    jobs[index] = updatedJob;
-
-    return updatedJob;
-  }
-
+  /**
+   * Actualización parcial (PATCH) — solo los campos enviados
+   */
   static async partialUpdate({ id, partialData }) {
-    const index = await ExpensesModel.getByIndexId(id);
-    // Actualizamos solo las propiedades que vienen en partialData
-    jobs[index] = { ...jobs[index], ...partialData };
-
-    return jobs[index];
+    const data = { ...partialData }
+    if (data.amount !== undefined) data.amount = Number(data.amount)
+    return prisma.expense.update({
+      where: { id: Number(id) },
+      data,
+    })
   }
 
-
+  /**
+   * Elimina un gasto
+   */
   static async delete(id) {
-    const index = await ExpensesModel.getByIndexId(id);
-
-    jobs.splice(index, 1);
+    return prisma.expense.delete({ where: { id: Number(id) } })
   }
 }

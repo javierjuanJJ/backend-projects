@@ -1,21 +1,38 @@
 import { Router } from 'express'
-import { ExpensesController } from '../controllers/expenses.js'
-import { validateJob, validatePartialJob } from '../schemas/jobs.js'
+import { ExpenseController } from '../controllers/expenses.js'
+import { validateExpense, validatePartialExpense } from '../schemas/expenses.js'
+import { authMiddleware } from '../middlewares/auth.js'
 
 export const expensesRouter = Router()
 
-function validateCreate (req, res, next) {
-  const result = validateJob(req.body)
+// ─── Todas las rutas de expenses requieren JWT ────────────────────────────────
+expensesRouter.use(authMiddleware)
+
+// ─── Middlewares de validación Zod (mismo patrón que en jobs) ────────────────
+
+function validateCreate(req, res, next) {
+  const result = validateExpense(req.body)
   if (result.success) {
-    req.body = result.data // vamos a tener los datos validados y limpios
+    req.body = result.data   // datos validados y limpios
     return next()
   }
-
   return res.status(400).json({ error: 'Invalid request', details: result.error.errors })
 }
 
-expensesRouter.get('/', ExpensesController.getAll)
-expensesRouter.get('/:id', ExpensesController.getId)
-expensesRouter.post('/', validateCreate, ExpensesController.create)
-expensesRouter.put('/:id', ExpensesController.update)
-expensesRouter.delete('/:id', ExpensesController.delete)
+const validateUpdate = (req, res, next) => {
+  const result = validatePartialExpense(req.body)
+  if (!result.success) {
+    return res.status(400).json({ error: JSON.parse(result.error.message) })
+  }
+  req.body = result.data
+  next()
+}
+
+// ─── Rutas ────────────────────────────────────────────────────────────────────
+
+expensesRouter.get('/',     ExpenseController.getAll)
+expensesRouter.get('/:id',  ExpenseController.getId)
+expensesRouter.post('/',    validateCreate,  ExpenseController.create)
+expensesRouter.patch('/:id', validateUpdate, ExpenseController.partialUpdate)
+expensesRouter.put('/:id',   validateCreate, ExpenseController.update)
+expensesRouter.delete('/:id',               ExpenseController.delete)

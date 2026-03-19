@@ -1,84 +1,146 @@
-import { DEFAULTS } from "../config.js"
-import { ExpensesModel } from "../models/expense.js"
+import { DEFAULTS } from '../config.js'
+import { ExpenseModel } from '../models/expense.js'
 
-export class ExpensesController {
-  static async getAll(req, res) {
-    const { text, title, level, limit = DEFAULTS.LIMIT_PAGINATION, technology, offset = DEFAULTS.LIMIT_OFFSET } = req.query
+export class ExpenseController {
+  /**
+   * GET /expenses
+   * Filtros opcionales: ?search=texto  ?id=1  ?minAmount=10  ?maxAmount=500
+   */
+  static async getAll(req, res, next) {
+    try {
+      const {
+        search,
+        minAmount,
+        maxAmount,
+        limit  = DEFAULTS.LIMIT_PAGINATION,
+        offset = DEFAULTS.LIMIT_OFFSET,
+      } = req.query
 
-    const jobs = await ExpensesModel.getAll({ text, title, level, limit, technology, offset })
+      const userId = req.user.id
 
-    const limitNumber = Number(limit)
-    const offsetNumber = Number(offset)
+      const expenses = await ExpenseModel.getAll({
+        userId,
+        search,
+        minAmount,
+        maxAmount,
+        limit,
+        offset,
+      })
 
-    return res.json({ data: jobs, total: jobs.length, limit: limitNumber, offset: offsetNumber })
-  }
+      const limitNumber  = Number(limit)
+      const offsetNumber = Number(offset)
 
-  static async getId(req, res) {
-    const { id } = req.params
-
-    const job = await ExpensesModel.getById(id)
-
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' })
+      return res.json({ data: expenses, total: expenses.length, limit: limitNumber, offset: offsetNumber })
+    } catch (err) {
+      next(err)
     }
-
-    return res.json(job)
   }
 
-  static async create(req, res) {
-    const { titulo, empresa, ubicacion, data } = req.body
+  /**
+   * GET /expenses/:id
+   * Obtiene un gasto por su ID primario
+   */
+  static async getId(req, res, next) {
+    try {
+      const { id }   = req.params
+      const userId   = req.user.id
 
-    const newJob = await ExpensesModel.create({ titulo, empresa, ubicacion, data })
+      const expense = await ExpenseModel.getById(id, userId)
 
-    return res.status(201).json(newJob)
-  }
+      if (!expense) {
+        return res.status(404).json({ error: 'Expense not found' })
+      }
 
-  static async update(req, res) {
-    const { id } = req.params
-
-    const { titulo, empresa, ubicacion, data } = req.body
-
-    const job = ExpensesModel.getById({ id })
-
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' })
+      return res.json(expense)
+    } catch (err) {
+      next(err)
     }
-
-    const updatedJob = await ExpensesModel.update({ id, titulo, empresa, ubicacion, data })
-    return res.status(201).json(updatedJob)
-
-  }
-  static async partialUpdate(req, res) {
-    const { id } = req.params
-
-    const partialData = req.body
-  
-    // Obtener el job por id
-    const job = ExpensesModel.getById(id)
-  
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' })
-    }
-  
-    // Actualizar parcialmente
-    const updatedJob = await ExpensesModel.partialUpdate({id, partialData})
-  
-    return res.status(200).json(updatedJob) // 200 porque es PATCH
   }
 
-  
+  /**
+   * POST /expenses
+   * Crea un nuevo gasto (body ya validado por Zod en la ruta)
+   */
+  static async create(req, res, next) {
+    try {
+      const { title, description, amount } = req.body
+      const userId = req.user.id
 
-  static async delete(req, res) {
-    const { id } = req.params
+      const newExpense = await ExpenseModel.create({ title, description, amount, userId })
 
-    const job = await ExpensesModel.getById(id)
-
-    if (!job) {
-      return res.status(404).json({ error: 'Job not found' })
+      return res.status(201).json(newExpense)
+    } catch (err) {
+      next(err)
     }
+  }
 
-    const jobsNonDeleted = await ExpensesModel.delete(id)
+  /**
+   * PUT /expenses/:id
+   * Reemplaza todos los campos del gasto
+   */
+  static async update(req, res, next) {
+    try {
+      const { id }                         = req.params
+      const { title, description, amount } = req.body
+      const userId                         = req.user.id
 
-    return res.status(201).json(`Job deleted succesfully`)
+      const expense = await ExpenseModel.getById(id, userId)
+
+      if (!expense) {
+        return res.status(404).json({ error: 'Expense not found' })
+      }
+
+      const updatedExpense = await ExpenseModel.update({ id, title, description, amount })
+
+      return res.status(200).json(updatedExpense)
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  /**
+   * PATCH /expenses/:id
+   * Actualiza parcialmente el gasto (solo los campos enviados)
+   */
+  static async partialUpdate(req, res, next) {
+    try {
+      const { id }      = req.params
+      const partialData = req.body   // ya validado por Zod parcial en la ruta
+      const userId      = req.user.id
+
+      const expense = await ExpenseModel.getById(id, userId)
+
+      if (!expense) {
+        return res.status(404).json({ error: 'Expense not found' })
+      }
+
+      const updatedExpense = await ExpenseModel.partialUpdate({ id, partialData })
+
+      return res.status(200).json(updatedExpense)   // 200 porque es PATCH
+    } catch (err) {
+      next(err)
+    }
+  }
+
+  /**
+   * DELETE /expenses/:id
+   */
+  static async delete(req, res, next) {
+    try {
+      const { id } = req.params
+      const userId = req.user.id
+
+      const expense = await ExpenseModel.getById(id, userId)
+
+      if (!expense) {
+        return res.status(404).json({ error: 'Expense not found' })
+      }
+
+      await ExpenseModel.delete(id)
+
+      return res.status(200).json({ message: 'Expense deleted successfully' })
+    } catch (err) {
+      next(err)
+    }
   }
 }
