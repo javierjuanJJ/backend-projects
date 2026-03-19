@@ -2,15 +2,30 @@
   "name": "backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "app.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/app.js",
+    "dev": "node --watch src/app.js",
+    "db:migrate": "prisma migrate dev",
+    "db:generate": "prisma generate",
+    "db:studio": "prisma studio",
+    "db:seed": "node prisma/seed.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@10.17.1",
   "dependencies": {
-    "express": "^5.2.1"
+    "@prisma/client": "^6.2.1",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "redis": "^4.7.0",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "prisma": "^6.2.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
