@@ -1,0 +1,746 @@
+### ============================================================
+###  MARKDOWN NOTES API — Colección completa de pruebas
+###  Compatible con: REST Client (VS Code), IntelliJ HTTP Client
+###
+###  INSTRUCCIONES
+###  1. Arranca el servidor:  npm run dev
+###  2. Ejecuta el seed:      npm run db:seed  (opcional pero recomendado)
+###  3. Ejecuta las peticiones en orden o de forma independiente
+###  4. Sustituye {{noteId}} por un id real obtenido en POST /notes
+### ============================================================
+
+@base     = http://localhost:3000
+@ctype    = Content-Type: application/json
+
+### ─── VARIABLE DINÁMICA ────────────────────────────────────────────────────
+### Tras ejecutar "POST — Crear nota válida (JSON)", copia el "id" devuelto
+### y pégalo aquí para que el resto de peticiones funcionen:
+@noteId   = PEGA_AQUI_EL_ID_REAL
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  0. HEALTH CHECK
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 0.1 — Health check (siempre debe devolver 200)
+# Esperado: { "status": "ok", "timestamp": "..." }
+GET {{base}}/health
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  1. GET /notes  — LISTAR NOTAS
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 1.1 — Listar todas las notas (sin filtros)
+# Esperado: 200 { data: [...], total: N, limit: 10, offset: 0 }
+GET {{base}}/notes
+
+###
+
+### ✅ 1.2 — Listar con paginación (limit y offset)
+# Esperado: 200, máximo 2 notas, empezando desde la posición 0
+GET {{base}}/notes?limit=2&offset=0
+
+###
+
+### ✅ 1.3 — Listar ordenadas por título ascendente
+# Esperado: 200, notas ordenadas alfabéticamente
+GET {{base}}/notes?orderBy=title&order=asc
+
+###
+
+### ✅ 1.4 — Buscar por texto en título o contenido
+# Esperado: 200, notas cuyo título o contenido incluyan "markdown"
+GET {{base}}/notes?search=markdown
+
+###
+
+### ✅ 1.5 — Filtrar por tag
+# Esperado: 200, solo notas con el tag "guia"
+GET {{base}}/notes?tag=guia
+
+###
+
+### ✅ 1.6 — Búsqueda sin resultados (término inexistente)
+# Esperado: 200 { data: [], total: 0, limit: 10, offset: 0 }
+GET {{base}}/notes?search=xyzabc123noresultados
+
+###
+
+### ❌ 1.7 — limit inválido (fuera de rango)
+# Esperado: 400 { error: "Parámetros de consulta inválidos", details: [...] }
+GET {{base}}/notes?limit=0
+
+###
+
+### ❌ 1.8 — limit como texto no numérico
+# Esperado: 400 { error: "Parámetros de consulta inválidos", details: [...] }
+GET {{base}}/notes?limit=mucho
+
+###
+
+### ❌ 1.9 — offset negativo
+# Esperado: 400 { error: "Parámetros de consulta inválidos", details: [...] }
+GET {{base}}/notes?offset=-5
+
+###
+
+### ❌ 1.10 — orderBy con valor no permitido
+# Esperado: 400 { error: "Parámetros de consulta inválidos", details: [...] }
+GET {{base}}/notes?orderBy=precio
+
+###
+
+### ❌ 1.11 — order con valor no permitido
+# Esperado: 400 { error: "Parámetros de consulta inválidos", details: [...] }
+GET {{base}}/notes?order=descendente
+
+###
+
+### ✅ 1.12 — Combinación de filtros válidos
+# Esperado: 200, paginado y filtrado
+GET {{base}}/notes?search=nota&limit=5&offset=0&orderBy=updatedAt&order=desc
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  2. POST /notes  — CREAR NOTA (JSON)
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 2.1 — Crear nota válida completa
+# Esperado: 201 { id, title, content, filename, tags, createdAt, updatedAt }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Mi primera nota de prueba",
+  "content": "# Título principal\n\nEsta nota fue creada desde el archivo de pruebas.\n\n## Sección 1\n\nTexto con **negrita** e *itálica*.\n\n```js\nconsole.log('Hola mundo')\n```",
+  "tags": "prueba,test,api"
+}
+
+###
+
+### ✅ 2.2 — Crear nota mínima (solo campos obligatorios)
+# Esperado: 201 con filename=null y tags=null
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota mínima",
+  "content": "Solo el contenido mínimo requerido."
+}
+
+###
+
+### ✅ 2.3 — Crear nota con tags como array
+# Esperado: 201, tags guardado como "javascript,backend,api"
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota con tags en array",
+  "content": "## Tags como array\n\nEsta nota pasa los tags como array de strings.",
+  "tags": ["javascript", "backend", "api"]
+}
+
+###
+
+### ✅ 2.4 — Crear nota con contenido Markdown extenso
+# Esperado: 201
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Guía completa de Express y Prisma",
+  "content": "# Express + Prisma\n\n## Instalación\n\n```bash\nnpm install express @prisma/client\nnpx prisma init\n```\n\n## Modelo\n\n```prisma\nmodel Note {\n  id      String @id @default(cuid())\n  title   String\n  content String\n}\n```\n\n## Endpoints\n\n| Método | Ruta       | Descripción     |\n|--------|------------|------------------|\n| GET    | /notes     | Listar notas    |\n| POST   | /notes     | Crear nota      |\n| DELETE | /notes/:id | Eliminar nota   |\n\n> Recuerda añadir validación con Zod en cada endpoint.\n\n- Item 1\n- Item 2\n- Item 3",
+  "tags": "express,prisma,backend"
+}
+
+###
+
+### ❌ 2.5 — Crear sin title (campo obligatorio)
+# Esperado: 400 { error: "Datos de entrada inválidos", details: [{field:"title",...}] }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "content": "Este es el contenido pero falta el título."
+}
+
+###
+
+### ❌ 2.6 — Crear sin content (campo obligatorio)
+# Esperado: 400 { error: "Datos de entrada inválidos", details: [{field:"content",...}] }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota sin contenido"
+}
+
+###
+
+### ❌ 2.7 — Title demasiado corto (menos de 3 caracteres)
+# Esperado: 400 { error: "...", details: [{field:"title", message:"...al menos 3 caracteres..."}] }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Hi",
+  "content": "Contenido de la nota."
+}
+
+###
+
+### ❌ 2.8 — Title demasiado largo (más de 150 caracteres)
+# Esperado: 400 { error: "...", details: [{field:"title", message:"...150 caracteres..."}] }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Este título es extremadamente largo y supera con creces el límite máximo establecido de ciento cincuenta caracteres en total para el campo de título de la nota creada",
+  "content": "Contenido normal."
+}
+
+###
+
+### ❌ 2.9 — Body completamente vacío
+# Esperado: 400 { error: "Datos de entrada inválidos", details: [...] }
+POST {{base}}/notes
+{{ctype}}
+
+{}
+
+###
+
+### ❌ 2.10 — Content vacío (string vacío)
+# Esperado: 400 { error: "...", details: [{field:"content", message:"no puede estar vacío"}] }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota con contenido vacío",
+  "content": ""
+}
+
+###
+
+### ❌ 2.11 — Title como número (tipo incorrecto)
+# Esperado: 400 { error: "...", details: [{field:"title",...}] }
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": 12345,
+  "content": "Contenido válido."
+}
+
+###
+
+### ❌ 2.12 — Body no es JSON válido (sintaxis rota)
+# Esperado: 400 (Express no puede parsear el body)
+POST {{base}}/notes
+{{ctype}}
+
+{ "title": "Nota rota", "content": }
+
+###
+
+### ❌ 2.13 — Sin Content-Type header
+# Esperado: el body se ignorará; 400 por campos obligatorios ausentes
+POST {{base}}/notes
+
+{
+  "title": "Sin header",
+  "content": "Sin Content-Type"
+}
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  3. GET /notes/:id  — OBTENER NOTA POR ID
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 3.1 — Obtener nota por id válido
+# ⚠️  Sustituye @noteId con un id real
+# Esperado: 200 { id, title, content, ... }
+GET {{base}}/notes/{{noteId}}
+
+###
+
+### ❌ 3.2 — ID inexistente (formato cuid pero no existe)
+# Esperado: 404 { error: "Nota no encontrada" }
+GET {{base}}/notes/clzzzzzzzzzzzzzzzzzzzzzzz
+
+###
+
+### ❌ 3.3 — ID con formato totalmente inválido
+# Esperado: 404 o 500 dependiendo de Prisma (id no coincide con cuid)
+GET {{base}}/notes/esto-no-es-un-id-valido
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  4. PUT /notes/:id  — REEMPLAZAR NOTA COMPLETA
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 4.1 — Reemplazar nota completa con datos válidos
+# Esperado: 200 con todos los campos actualizados
+PUT {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "Título actualizado con PUT",
+  "content": "# Contenido completamente reemplazado\n\nEsta nota fue actualizada con un PUT completo.\n\n- Nuevo item 1\n- Nuevo item 2",
+  "tags": "actualizada,put"
+}
+
+###
+
+### ✅ 4.2 — PUT que sobreescribe los tags a null
+# Esperado: 200, tags=null en la respuesta
+PUT {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "Nota sin tags tras PUT",
+  "content": "Contenido reemplazado sin tags."
+}
+
+###
+
+### ❌ 4.3 — PUT sin title (campo obligatorio en PUT)
+# Esperado: 400 { error: "Datos de entrada inválidos", details: [...] }
+PUT {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "content": "Solo contenido, falta title."
+}
+
+###
+
+### ❌ 4.4 — PUT a un id inexistente
+# Esperado: 404 { error: "Nota no encontrada" }
+PUT {{base}}/notes/clzzzzzzzzzzzzzzzzzzzzzzz
+{{ctype}}
+
+{
+  "title": "Nota fantasma",
+  "content": "Esta nota no existe."
+}
+
+###
+
+### ❌ 4.5 — PUT con title vacío
+# Esperado: 400 { error: "...", details: [{field:"title",...}] }
+PUT {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "",
+  "content": "Contenido con title vacío."
+}
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  5. PATCH /notes/:id  — ACTUALIZACIÓN PARCIAL
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 5.1 — Actualizar solo el título
+# Esperado: 200 con title modificado, content igual
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "Título modificado con PATCH"
+}
+
+###
+
+### ✅ 5.2 — Actualizar solo los tags
+# Esperado: 200 con tags actualizados
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "tags": "parcial,patch,test"
+}
+
+###
+
+### ✅ 5.3 — Actualizar solo el content
+# Esperado: 200 con content actualizado
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "content": "# Contenido actualizado parcialmente\n\nSolo el contenido fue cambiado con PATCH."
+}
+
+###
+
+### ✅ 5.4 — Actualizar title y tags a la vez
+# Esperado: 200 con ambos campos actualizados
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "Título y tags actualizados",
+  "tags": "multi,patch"
+}
+
+###
+
+### ❌ 5.5 — PATCH con title demasiado corto
+# Esperado: 400 { error: "Datos de entrada inválidos", details: [...] }
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "AB"
+}
+
+###
+
+### ❌ 5.6 — PATCH a id inexistente
+# Esperado: 404 { error: "Nota no encontrada" }
+PATCH {{base}}/notes/clzzzzzzzzzzzzzzzzzzzzzzz
+{{ctype}}
+
+{
+  "title": "Nota que no existe"
+}
+
+###
+
+### ✅ 5.7 — PATCH con body vacío (no modifica nada)
+# Esperado: 200, la nota queda igual (Zod partial permite objeto vacío)
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{}
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  6. GET /notes/:id/render  — RENDERIZAR MARKDOWN A HTML
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 6.1 — Renderizar una nota existente
+# Esperado: 200 { id, title, html: "<h1>...</h1><p>...</p>..." }
+GET {{base}}/notes/{{noteId}}/render
+
+###
+
+### ✅ 6.2 — Renderizar nota creada con Markdown enriquecido
+# Primero crea esta nota y luego usa su id para renderizar
+# Esperado: HTML con tablas, código, blockquotes, etc.
+# POST para crearla:
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota para renderizar",
+  "content": "# Encabezado H1\n\n## Encabezado H2\n\nTexto con **negrita**, *cursiva* y ~~tachado~~.\n\n### Tabla\n\n| Nombre  | Valor |\n|---------|-------|\n| Clave   | 42    |\n| Prueba  | OK    |\n\n### Código\n\n```javascript\nconst notas = await NoteModel.getAll({ limit: 5 })\nconsole.log(notas)\n```\n\n### Cita\n\n> Esta es una cita en bloque.\n\n### Imagen sin alt (advertencia de gramática)\n\n![](https://example.com/image.png)\n\n### Link\n\n[Visita Prisma](https://www.prisma.io)",
+  "tags": "render,html,markdown"
+}
+
+###
+
+### ❌ 6.3 — Renderizar nota con id inexistente
+# Esperado: 404 { error: "Nota no encontrada" }
+GET {{base}}/notes/clzzzzzzzzzzzzzzzzzzzzzzz/render
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  7. POST /notes/:id/check  — COMPROBAR GRAMÁTICA (nota guardada)
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 7.1 — Comprobar nota bien escrita (sin issues)
+# Primero crea esta nota sin errores:
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota perfecta sin errores",
+  "content": "# Encabezado correcto\n\nPárrafo normal con [enlace válido](https://example.com).\n\n## Segunda sección\n\n```js\nconsole.log('código cerrado')\n```\n\n- Item con guión\n- Otro item con guión",
+  "tags": "clean,valid"
+}
+
+###
+
+### ✅ 7.2 — Comprobar gramática de la nota guardada
+# ⚠️  Usa el id de la nota guardada que quieras analizar
+# Esperado: 200 { id, title, summary: {valid:true, errors:0,...}, issues:[] }
+POST {{base}}/notes/{{noteId}}/check
+
+###
+
+### ❌ 7.3 — Comprobar gramática de id inexistente
+# Esperado: 404 { error: "Nota no encontrada" }
+POST {{base}}/notes/clzzzzzzzzzzzzzzzzzzzzzzz/check
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  8. POST /notes/check  — COMPROBAR GRAMÁTICA SIN GUARDAR
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 8.1 — Contenido perfectamente válido
+# Esperado: 200 { summary: { valid: true, errors: 0, warnings: 0, info: 0 }, issues: [] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Encabezado correcto\n\nTexto de párrafo normal.\n\n## Segunda sección\n\nMás contenido.\n\n```bash\nnpm install\n```\n\n- Elemento 1\n- Elemento 2"
+}
+
+###
+
+### ⚠️  8.2 — Heading sin espacio tras # (error)
+# Esperado: 200 { summary: { valid: false, errors: 1 }, issues: [{type:"error", rule:"heading-space"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "#Título sin espacio\n\nEste heading es incorrecto porque no tiene espacio."
+}
+
+###
+
+### ⚠️  8.3 — Bloque de código sin cerrar (error)
+# Esperado: 200 { summary: { valid: false, errors: 1 }, issues: [{rule:"unclosed-code-block"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Nota con código roto\n\n```javascript\nconst x = 1\n// Falta el cierre del bloque de código"
+}
+
+###
+
+### ⚠️  8.4 — Link con URL vacía (error)
+# Esperado: 200 { summary: { valid: false, errors: 1 }, issues: [{rule:"empty-link-url"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Links rotos\n\nEste link no tiene URL: [texto del link]()\n\nPero este sí: [Google](https://google.com)"
+}
+
+###
+
+### ⚠️  8.5 — Link con texto vacío (warning)
+# Esperado: 200 { summary: { valid: true, warnings: 1 }, issues: [{rule:"empty-link-text"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Links con texto vacío\n\nEste link no tiene texto: [](https://example.com)"
+}
+
+###
+
+### ⚠️  8.6 — Imagen sin alt text (warning)
+# Esperado: 200 { summary: { valid: true, warnings: 1 }, issues: [{rule:"missing-alt"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Imagen sin accesibilidad\n\n![](https://example.com/foto.png)\n\nLa imagen de arriba no tiene texto alternativo."
+}
+
+###
+
+### ⚠️  8.7 — Mezcla de estilos de lista (info)
+# Esperado: 200 { summary: { valid: true, info: 1 }, issues: [{rule:"list-style"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Lista inconsistente\n\n- Elemento con guión\n- Otro con guión\n* Este con asterisco\n* Otro con asterisco"
+}
+
+###
+
+### ⚠️  8.8 — Headings consecutivos sin contenido (info)
+# Esperado: 200 { summary: { valid: true, info: 1 }, issues: [{rule:"consecutive-headings"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Primer encabezado\n## Segundo encabezado inmediatamente\n\nAquí sí hay contenido."
+}
+
+###
+
+### ⚠️  8.9 — Tabla con columnas inconsistentes (error)
+# Esperado: 200 { summary: { valid: false, errors: 1 }, issues: [{rule:"table-columns"}] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "# Tabla rota\n\n| Col1 | Col2 | Col3 |\n|------|------|\n| A    | B    | C    | D |\n"
+}
+
+###
+
+### ⚠️  8.10 — Múltiples errores simultáneos
+# Esperado: 200 { summary: { valid: false, errors: 2, warnings: 2, info: 1 }, issues: [...5 items] }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": "#Heading sin espacio\n## Segundo heading consecutivo\n\n- Lista guión\n* Lista asterisco\n\n![](https://img.com/foto.png)\n\n[](https://link-sin-texto.com)\n\n[texto sin url]()\n\n```js\nconst x = 1\n// bloque sin cerrar"
+}
+
+###
+
+### ❌ 8.11 — Body sin campo content
+# Esperado: 400 { error: 'El campo "content" es obligatorio...' }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "title": "Solo título, sin content"
+}
+
+###
+
+### ❌ 8.12 — Content como número (tipo incorrecto)
+# Esperado: 400 { error: 'El campo "content" es obligatorio y debe ser texto' }
+POST {{base}}/notes/check
+{{ctype}}
+
+{
+  "content": 99999
+}
+
+###
+
+### ❌ 8.13 — Body vacío
+# Esperado: 400 { error: 'El campo "content" es obligatorio...' }
+POST {{base}}/notes/check
+{{ctype}}
+
+{}
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  9. DELETE /notes/:id  — ELIMINAR NOTA
+### ════════════════════════════════════════════════════════════════════════
+
+### ✅ 9.1 — Crear nota desechable para luego borrarla
+# Copia el "id" devuelto y pégalo en 9.2
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota para eliminar",
+  "content": "Esta nota se va a borrar en el siguiente paso.",
+  "tags": "temporal,borrar"
+}
+
+###
+
+### ✅ 9.2 — Eliminar la nota desechable
+# ⚠️  Sustituye el id por el devuelto en 9.1
+# Esperado: 200 { message: "Nota eliminada correctamente", id: "..." }
+DELETE {{base}}/notes/{{noteId}}
+
+###
+
+### ❌ 9.3 — Eliminar un id ya borrado (segunda vez)
+# Esperado: 404 { error: "Nota no encontrada" }
+DELETE {{base}}/notes/{{noteId}}
+
+###
+
+### ❌ 9.4 — Eliminar id completamente inexistente
+# Esperado: 404 { error: "Nota no encontrada" }
+DELETE {{base}}/notes/clzzzzzzzzzzzzzzzzzzzzzzz
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  10. RUTAS INEXISTENTES  — 404 globales
+### ════════════════════════════════════════════════════════════════════════
+
+### ❌ 10.1 — Ruta raíz no existe
+# Esperado: 404 { error: "Ruta no encontrada" }
+GET {{base}}/
+
+###
+
+### ❌ 10.2 — Ruta inexistente
+# Esperado: 404 { error: "Ruta no encontrada" }
+GET {{base}}/api/v1/notas
+
+###
+
+### ❌ 10.3 — Método no permitido en ruta existente
+# Esperado: 404 (Express no expone PUT en /notes/check)
+PUT {{base}}/notes/check
+{{ctype}}
+
+{ "content": "test" }
+
+
+
+### ════════════════════════════════════════════════════════════════════════
+###  11. FLUJO COMPLETO DE INTEGRACIÓN  — Escenario end-to-end
+### ════════════════════════════════════════════════════════════════════════
+###  Ejecuta estas peticiones en orden para simular un uso real completo:
+###  Crear → Verificar → Renderizar → Analizar → Actualizar → Borrar
+
+### [1/6] Crear nota con contenido rico
+POST {{base}}/notes
+{{ctype}}
+
+{
+  "title": "Nota de integración end-to-end",
+  "content": "# Nota de integración\n\n## ¿Qué probamos?\n\nEsta nota recorre el flujo completo de la API.\n\n### Lista de tareas\n\n- [x] Crear la nota\n- [ ] Verificar que existe\n- [ ] Renderizar el HTML\n- [ ] Analizar la gramática\n- [ ] Actualizar parcialmente\n- [ ] Eliminar\n\n### Código de ejemplo\n\n```javascript\n// Llamada a la API\nconst res = await fetch('/notes')\nconst { data } = await res.json()\nconsole.log(data)\n```\n\n> **Nota:** Esta nota tiene un Markdown correcto y no debe generar errores de gramática.",
+  "tags": "integracion,e2e,flujo"
+}
+
+###
+
+### [2/6] Verificar que se creó correctamente (usa el id del paso anterior)
+GET {{base}}/notes/{{noteId}}
+
+###
+
+### [3/6] Renderizar el HTML de la nota
+GET {{base}}/notes/{{noteId}}/render
+
+###
+
+### [4/6] Analizar la gramática de la nota guardada
+POST {{base}}/notes/{{noteId}}/check
+
+###
+
+### [5/6] Actualizar parcialmente el título
+PATCH {{base}}/notes/{{noteId}}
+{{ctype}}
+
+{
+  "title": "Nota de integración — ACTUALIZADA",
+  "tags": "integracion,e2e,actualizada"
+}
+
+###
+
+### [6/6] Eliminar la nota para limpiar
+DELETE {{base}}/notes/{{noteId}}
+
+###
+
+### Confirmar que ya no existe (debe devolver 404)
+GET {{base}}/notes/{{noteId}}

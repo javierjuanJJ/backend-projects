@@ -1,0 +1,23 @@
+// prisma/schema.prisma
+// Documentación: https://www.prisma.io/docs/guides/frameworks/nextjs
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  title     String
+  content   String   // Contenido en Markdown
+  filename  String?  // Nombre del archivo original si fue subido
+  tags      String?  // Tags separados por coma (SQLite no soporta arrays)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notes")
+}
