@@ -1,0 +1,15 @@
+{
+  "name": "movies-cli",
+  "version": "1.0.0",
+  "description": "CLI para consultar listados de películas desde la API de TMDB",
+  "main": "movies.js",
+  "scripts": {
+    "playing":  "node movies.js --type playing",
+    "popular":  "node movies.js --type popular",
+    "top":      "node movies.js --type top",
+    "upcoming": "node movies.js --type upcoming"
+  },
+  "dependencies": {
+    "dotenv": "^16.0.0"
+  }
+}
