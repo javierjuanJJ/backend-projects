@@ -1,0 +1,20 @@
+{
+  "name": "broadcast-server",
+  "version": "1.0.0",
+  "description": "A CLI broadcast server using Socket.IO",
+  "main": "index.js",
+  "type": "commonjs",
+  "bin": {
+    "broadcast-server": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js start",
+    "connect": "node index.js connect"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "socket.io": "^4.7.5",
+    "socket.io-client": "^4.7.5",
+    "chalk": "^4.1.2"
+  }
+}
