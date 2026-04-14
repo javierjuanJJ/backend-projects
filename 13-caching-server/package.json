@@ -1,0 +1,17 @@
+{
+  "name": "caching-proxy",
+  "version": "1.0.0",
+  "description": "Proxy HTTP con caché en memoria y limpieza desde la CLI.",
+  "main": "index.js",
+  "bin": {
+    "caching-proxy": "./index.js"
+  },
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["proxy", "cache", "cli", "http"],
+  "license": "MIT"
+}
