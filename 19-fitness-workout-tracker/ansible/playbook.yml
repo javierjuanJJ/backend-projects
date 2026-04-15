@@ -1,0 +1,132 @@
+---
+# ============================================================
+# Workout Tracker — Ansible Playbook
+# Deploy en Cubepath via Docker Compose (producción)
+# Uso: ansible-playbook playbook.yml -i inventory.ini
+# ============================================================
+
+- name: Deploy Workout Tracker to Cubepath
+  hosts: cubepath
+  become: true
+  gather_facts: true
+
+  vars:
+    app_dir: /opt/workout-tracker
+    registry: "{{ registry | default('ghcr.io') }}"
+    image_name: "{{ image_name }}"
+    image_tag: "{{ image_tag | default('latest') }}"
+    compose_file: docker-compose.prod.yml
+
+  tasks:
+
+    # ── 1. Prerrequisitos ───────────────────────────────────
+    - name: Install required packages
+      ansible.builtin.apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - curl
+          - git
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker service is running
+      ansible.builtin.service:
+        name: docker
+        state: started
+        enabled: true
+
+    # ── 2. Preparar directorio de la app ────────────────────
+    - name: Create app directory
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: root
+        group: docker
+        mode: "0755"
+
+    - name: Copy docker-compose.prod.yml
+      ansible.builtin.copy:
+        src: ../docker-compose.prod.yml
+        dest: "{{ app_dir }}/docker-compose.prod.yml"
+        mode: "0644"
+
+    # ── 3. Escribir .env de producción ──────────────────────
+    - name: Write production .env file
+      ansible.builtin.template:
+        src: templates/env.prod.j2
+        dest: "{{ app_dir }}/.env"
+        mode: "0600"
+      no_log: true
+
+    # ── 4. Login al registry (GHCR) ─────────────────────────
+    - name: Login to GitHub Container Registry
+      ansible.builtin.command: >
+        docker login ghcr.io
+        -u {{ lookup('env', 'GITHUB_ACTOR') }}
+        -p {{ lookup('env', 'GITHUB_TOKEN') }}
+      no_log: true
+      changed_when: true
+
+    # ── 5. Pull nueva imagen ─────────────────────────────────
+    - name: Pull latest Docker image
+      ansible.builtin.command: >
+        docker pull {{ registry }}/{{ image_name }}:{{ image_tag }}
+      changed_when: true
+      register: pull_result
+
+    - name: Show pull result
+      ansible.builtin.debug:
+        var: pull_result.stdout_lines
+
+    # ── 6. Detener contenedores anteriores ───────────────────
+    - name: Stop existing containers
+      ansible.builtin.command:
+        cmd: docker compose -f {{ compose_file }} down --remove-orphans
+        chdir: "{{ app_dir }}"
+      changed_when: true
+      ignore_errors: true
+
+    # ── 7. Ejecutar migraciones Prisma ───────────────────────
+    - name: Run Prisma migrations
+      ansible.builtin.command: >
+        docker run --rm
+        --env-file {{ app_dir }}/.env
+        --network host
+        {{ registry }}/{{ image_name }}:{{ image_tag }}
+        sh -c "pnpm prisma migrate deploy"
+      changed_when: true
+
+    # ── 8. Levantar nueva versión ────────────────────────────
+    - name: Start new containers
+      ansible.builtin.command:
+        cmd: >
+          docker compose -f {{ compose_file }}
+          up -d --force-recreate
+          --pull never
+        chdir: "{{ app_dir }}"
+      environment:
+        IMAGE_TAG: "{{ image_tag }}"
+        REGISTRY: "{{ registry }}"
+        IMAGE_NAME: "{{ image_name }}"
+      changed_when: true
+
+    # ── 9. Health check post-deploy ──────────────────────────
+    - name: Wait for API to be healthy
+      ansible.builtin.uri:
+        url: "http://localhost:3000/api/health"
+        status_code: 200
+        timeout: 5
+      register: health_check
+      retries: 10
+      delay: 5
+      until: health_check.status == 200
+
+    - name: Deployment successful
+      ansible.builtin.debug:
+        msg: "✅ Workout Tracker deployed successfully with image {{ registry }}/{{ image_name }}:{{ image_tag }}"
+
+    # ── 10. Limpiar imágenes antiguas ────────────────────────
+    - name: Remove dangling images
+      ansible.builtin.command: docker image prune -f
+      changed_when: true

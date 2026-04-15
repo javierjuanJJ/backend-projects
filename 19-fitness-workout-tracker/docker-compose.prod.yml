@@ -1,0 +1,61 @@
+version: "3.9"
+
+# ============================================================
+# Workout Tracker — Docker Compose (Producción)
+# Uso: docker compose -f docker-compose.prod.yml up -d
+# ============================================================
+
+services:
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: workout_postgres_prod
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_prod_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - workout_prod_net
+    # NO exponer puerto en producción — solo acceso interno
+
+  api:
+    image: ${REGISTRY:-ghcr.io}/${IMAGE_NAME}:${IMAGE_TAG:-latest}
+    container_name: workout_api_prod
+    restart: always
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      BCRYPT_SALT_ROUNDS: ${BCRYPT_SALT_ROUNDS:-12}
+      CORS_ORIGINS: ${CORS_ORIGINS}
+    ports:
+      - "3000:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command: sh -c "pnpm prisma migrate deploy && node server.js"
+    networks:
+      - workout_prod_net
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
+          memory: 512M
+
+volumes:
+  postgres_prod_data:
+    driver: local
+
+networks:
+  workout_prod_net:
+    driver: bridge

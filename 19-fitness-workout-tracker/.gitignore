@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Next.js
+.next/
+out/
+
+# Build
+dist/
+build/
+
+# Coverage
+coverage/
+
+# Prisma
+prisma/migrations/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/settings.json
+.idea/

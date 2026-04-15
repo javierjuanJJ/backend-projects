@@ -1,0 +1,80 @@
+name: CD — Deploy to Cubepath
+
+on:
+  workflow_run:
+    workflows: ["CI — Test & Build"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Cubepath
+    runs-on: ubuntu-latest
+    # Solo despliega si el CI pasó exitosamente
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+
+    environment:
+      name: production
+      url: https://${{ secrets.CUBEPATH_APP_NAME }}.cubepath.io
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Instalar Ansible ────────────────────────────────
+      - name: Set up Python + Ansible
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Ansible
+        run: |
+          pip install ansible ansible-lint
+
+      # ── Configurar SSH para el servidor Cubepath ────────
+      - name: Configure SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.CUBEPATH_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.CUBEPATH_HOST }} >> ~/.ssh/known_hosts
+
+      # ── Escribir inventario dinámico ────────────────────
+      - name: Write Ansible inventory
+        run: |
+          cat > ansible/inventory.ini << EOF
+          [cubepath]
+          ${{ secrets.CUBEPATH_HOST }} ansible_user=${{ secrets.CUBEPATH_USER }} ansible_ssh_private_key_file=~/.ssh/id_rsa
+          EOF
+
+      # ── Ejecutar playbook ───────────────────────────────
+      - name: Run Ansible deploy playbook
+        env:
+          REGISTRY: ghcr.io
+          IMAGE_NAME: ${{ github.repository }}
+          IMAGE_TAG: sha-${{ github.sha }}
+          CUBEPATH_APP_NAME: ${{ secrets.CUBEPATH_APP_NAME }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PROD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET_PROD }}
+          POSTGRES_USER: ${{ secrets.POSTGRES_USER_PROD }}
+          POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD_PROD }}
+          POSTGRES_DB: ${{ secrets.POSTGRES_DB_PROD }}
+          CORS_ORIGINS: ${{ secrets.CORS_ORIGINS_PROD }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          ansible-playbook ansible/playbook.yml \
+            -i ansible/inventory.ini \
+            --extra-vars "image_tag=sha-${{ github.sha }}" \
+            --extra-vars "registry=ghcr.io" \
+            --extra-vars "image_name=${{ github.repository }}"
+
+      - name: Notify deployment
+        if: success()
+        run: |
+          echo "✅ Deployment to Cubepath successful!"
+          echo "Image: ghcr.io/${{ github.repository }}:sha-${{ github.sha }}"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed. Check logs above."
+          exit 1

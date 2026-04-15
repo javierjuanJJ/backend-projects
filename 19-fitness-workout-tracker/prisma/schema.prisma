@@ -1,0 +1,63 @@
+// prisma/schema.prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String    @id @default(uuid())
+  username     String    @unique @db.VarChar(50)
+  email        String    @unique @db.VarChar(100)
+  passwordHash String    @map("password_hash") @db.VarChar(255)
+  createdAt    DateTime  @default(now()) @map("created_at")
+  workouts     Workout[]
+
+  @@map("users")
+}
+
+model Exercise {
+  id             String          @id @default(uuid())
+  name           String          @db.VarChar(100)
+  description    String?         @db.Text
+  category       String?         @db.VarChar(50)
+  muscleGroup    String?         @map("muscle_group") @db.VarChar(50)
+  createdAt      DateTime        @default(now()) @map("created_at")
+  workoutDetails WorkoutDetail[]
+
+  @@map("exercises")
+}
+
+model Workout {
+  id             String          @id @default(uuid())
+  userId         String          @map("user_id") @db.VarChar(36)
+  name           String          @default("Nueva rutina") @db.VarChar(100)
+  scheduledDate  DateTime        @map("scheduled_date")
+  isCompleted    Boolean         @default(false) @map("is_completed")
+  notes          String?         @db.Text
+  createdAt      DateTime        @default(now()) @map("created_at")
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workoutDetails WorkoutDetail[]
+
+  @@index([userId])
+  @@index([scheduledDate])
+  @@map("workouts")
+}
+
+model WorkoutDetail {
+  id            String   @id @default(uuid())
+  workoutId     String   @map("workout_id") @db.VarChar(36)
+  exerciseId    String   @map("exercise_id") @db.VarChar(36)
+  sets          Int      @default(1)
+  reps          Int      @default(0)
+  weightKg      Decimal? @default(0.00) @map("weight_kg") @db.Decimal(5, 2)
+  exerciseOrder Int?     @map("exercise_order")
+  workout       Workout  @relation(fields: [workoutId], references: [id], onDelete: Cascade)
+  exercise      Exercise @relation(fields: [exerciseId], references: [id], onDelete: Restrict)
+
+  @@index([workoutId])
+  @@map("workout_details")
+}

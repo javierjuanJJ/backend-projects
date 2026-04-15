@@ -1,0 +1,8 @@
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: 'standalone',
+  serverExternalPackages: ['@prisma/client', 'bcryptjs'],
+}
+
+export default nextConfig
