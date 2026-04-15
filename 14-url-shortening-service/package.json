@@ -1,0 +1,29 @@
+{
+  "name": "shorturl-api",
+  "version": "1.0.0",
+  "description": "URL Shortener API con Express, Prisma ORM y nanoid",
+  "type": "module",
+  "main": "app.js",
+  "scripts": {
+    "dev": "node --watch app.js",
+    "start": "node app.js",
+    "db:migrate": "npx prisma migrate dev",
+    "db:generate": "npx prisma generate",
+    "db:studio": "npx prisma studio",
+    "db:push": "npx prisma db push",
+    "db:reset": "npx prisma migrate reset"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "cors": "^2.8.5",
+    "express": "^4.21.2",
+    "nanoid": "^5.0.9",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "prisma": "^5.22.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
