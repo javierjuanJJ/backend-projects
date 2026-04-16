@@ -1,0 +1,121 @@
+---
+# roles/hardening/tasks/main.yml — User setup, SSH hardening, Fail2Ban
+
+# ── 1. User Setup ─────────────────────────────────────────────────────────────
+
+- name: Create non-root sudo user
+  ansible.builtin.user:
+    name: "{{ new_user }}"
+    shell: /bin/bash
+    create_home: true
+    state: present
+  tags: user
+
+- name: Add user to sudo group
+  ansible.builtin.user:
+    name: "{{ new_user }}"
+    groups: sudo
+    append: true
+  tags: user
+
+- name: Create sudoers.d entry (passwordless sudo)
+  ansible.builtin.copy:
+    dest: "/etc/sudoers.d/90-{{ new_user }}"
+    content: "{{ new_user }} ALL=(ALL) NOPASSWD:ALL\n"
+    validate: "visudo -cf %s"
+    mode: "0440"
+    owner: root
+    group: root
+  tags: user
+
+- name: Create .ssh directory for new user
+  ansible.builtin.file:
+    path: "/home/{{ new_user }}/.ssh"
+    state: directory
+    owner: "{{ new_user }}"
+    group: "{{ new_user }}"
+    mode: "0700"
+  tags: [user, ssh]
+
+- name: Install SSH authorized key for new user
+  ansible.posix.authorized_key:
+    user: "{{ new_user }}"
+    state: present
+    key: "{{ ssh_public_key }}"
+    exclusive: false
+  tags: [user, ssh]
+
+# ── 2. SSH Hardening ──────────────────────────────────────────────────────────
+
+- name: Backup original sshd_config
+  ansible.builtin.copy:
+    src: /etc/ssh/sshd_config
+    dest: "/etc/ssh/sshd_config.bak.{{ ansible_date_time.date }}"
+    remote_src: true
+    mode: "0600"
+  tags: ssh
+
+- name: Apply SSH configuration settings
+  ansible.builtin.lineinfile:
+    path: /etc/ssh/sshd_config
+    regexp: "^#?{{ item.key }}"
+    line: "{{ item.key }} {{ item.value }}"
+    state: present
+    validate: "sshd -t -f %s"
+  loop:
+    - { key: "PermitRootLogin",                   value: "{{ ssh_permit_root_login }}" }
+    - { key: "PasswordAuthentication",            value: "{{ ssh_password_authentication }}" }
+    - { key: "PubkeyAuthentication",              value: "yes" }
+    - { key: "AuthorizedKeysFile",                value: ".ssh/authorized_keys" }
+    - { key: "X11Forwarding",                     value: "no" }
+    - { key: "AllowTcpForwarding",                value: "no" }
+    - { key: "MaxAuthTries",                      value: "{{ ssh_max_auth_tries }}" }
+    - { key: "LoginGraceTime",                    value: "{{ ssh_login_grace_time }}" }
+    - { key: "ClientAliveInterval",               value: "300" }
+    - { key: "ClientAliveCountMax",               value: "2" }
+    - { key: "PermitEmptyPasswords",              value: "no" }
+    - { key: "ChallengeResponseAuthentication",   value: "no" }
+    - { key: "Protocol",                          value: "2" }
+    - { key: "Port",                              value: "{{ ssh_port }}" }
+  notify: restart ssh
+  tags: ssh
+
+# ── 3. Fail2Ban ───────────────────────────────────────────────────────────────
+
+- name: Install Fail2Ban
+  ansible.builtin.apt:
+    name: fail2ban
+    state: present
+  tags: fail2ban
+
+- name: Deploy Fail2Ban jail.local
+  ansible.builtin.copy:
+    dest: /etc/fail2ban/jail.local
+    content: |
+      [DEFAULT]
+      bantime  = {{ fail2ban_bantime }}
+      findtime = {{ fail2ban_findtime }}
+      maxretry = {{ fail2ban_maxretry }}
+      backend  = systemd
+      banaction = ufw
+
+      [sshd]
+      enabled  = true
+      port     = {{ ssh_port }}
+      logpath  = %(sshd_log)s
+      maxretry = {{ fail2ban_maxretry }}
+      bantime  = {{ fail2ban_bantime }}
+    mode: "0644"
+    owner: root
+    group: root
+  notify: restart fail2ban
+  tags: fail2ban
+
+- name: Enable and start Fail2Ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    state: started
+    enabled: true
+  tags: fail2ban
+
+# ── Handlers ──────────────────────────────────────────────────────────────────

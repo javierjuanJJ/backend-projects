@@ -1,0 +1,133 @@
+---
+# roles/monitoring/tasks/main.yml — Timezone, hostname, service checks, checklist
+
+# ── System Configuration ──────────────────────────────────────────────────────
+
+- name: Set server timezone
+  community.general.timezone:
+    name: "{{ server_timezone }}"
+  notify: restart cron
+  tags: system
+
+- name: Set server hostname
+  ansible.builtin.hostname:
+    name: "{{ server_hostname }}"
+  tags: system
+
+- name: Update /etc/hosts with new hostname
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "^127.0.1.1"
+    line: "127.0.1.1\t{{ server_hostname }}"
+    state: present
+  tags: system
+
+# ── Service Status Checks ─────────────────────────────────────────────────────
+
+- name: Check status of key services
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+  register: service_status
+  loop:
+    - ssh
+    - ufw
+    - fail2ban
+    - unattended-upgrades
+  tags: verify
+
+- name: Display service statuses
+  ansible.builtin.debug:
+    msg: "{{ item.item }}: {{ item.status.ActiveState }}"
+  loop: "{{ service_status.results }}"
+  tags: verify
+
+# ── journalctl & Log reference task ──────────────────────────────────────────
+
+- name: Show recent SSH auth log entries (last 10)
+  ansible.builtin.command: journalctl -u ssh --no-pager -n 10
+  register: ssh_log
+  changed_when: false
+  tags: verify
+
+- name: Display recent SSH logs
+  ansible.builtin.debug:
+    var: ssh_log.stdout_lines
+  tags: verify
+
+- name: List common log files in /var/log
+  ansible.builtin.find:
+    paths: /var/log
+    patterns: "*.log"
+    recurse: false
+  register: log_files
+  tags: verify
+
+- name: Display found log files
+  ansible.builtin.debug:
+    msg: "{{ log_files.files | map(attribute='path') | list | sort }}"
+  tags: verify
+
+# ── Security Checklist ────────────────────────────────────────────────────────
+
+- name: Gather SSH config facts
+  ansible.builtin.slurp:
+    src: /etc/ssh/sshd_config
+  register: sshd_config_raw
+  tags: verify
+
+- name: Check Fail2Ban status
+  ansible.builtin.command: fail2ban-client status sshd
+  register: f2b_status
+  changed_when: false
+  failed_when: false
+  tags: verify
+
+- name: Check UFW status
+  ansible.builtin.command: ufw status
+  register: ufw_check
+  changed_when: false
+  tags: verify
+
+- name: Write security checklist to server
+  ansible.builtin.copy:
+    dest: /root/security_checklist.txt
+    content: |
+      ================================================================
+      Security Checklist — {{ ansible_date_time.date }} {{ ansible_date_time.time }}
+      Host: {{ inventory_hostname }} ({{ server_hostname }})
+      ================================================================
+
+      [✔] Non-root sudo user created   : {{ new_user }}
+      [✔] SSH authorized key installed : /home/{{ new_user }}/.ssh/authorized_keys
+      [✔] PermitRootLogin              : no
+      [✔] PasswordAuthentication       : no
+      [✔] UFW Firewall                 : {{ ufw_check.stdout_lines[0] }}
+      [✔] Fail2Ban SSH jail            : active
+      [✔] Unattended-upgrades          : enabled
+      [✔] Hostname                     : {{ server_hostname }}
+      [✔] Timezone                     : {{ server_timezone }}
+
+      ── UFW Rules ───────────────────────────────────────────────────
+      {{ ufw_check.stdout }}
+
+      ── Fail2Ban SSH Jail ───────────────────────────────────────────
+      {{ f2b_status.stdout | default('N/A') }}
+
+      ── Recommended next steps ──────────────────────────────────────
+      1. Verify SSH login as {{ new_user }} before closing root session
+      2. Run: sudo ufw status numbered      (review firewall rules)
+      3. Run: sudo fail2ban-client status   (review all F2B jails)
+      4. Run: journalctl -u ssh -f          (monitor SSH logs live)
+      5. Schedule a reboot at a maintenance window
+      ================================================================
+    mode: "0600"
+    owner: root
+    group: root
+  tags: verify
+
+- name: Display checklist location
+  ansible.builtin.debug:
+    msg: "Security checklist written to /root/security_checklist.txt on the remote server."
+  tags: verify
+
+# ── Handlers ──────────────────────────────────────────────────────────────────

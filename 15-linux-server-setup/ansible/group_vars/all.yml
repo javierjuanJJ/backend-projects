@@ -1,0 +1,37 @@
+---
+# ─────────────────────────────────────────────────────────────────────────────
+# Group Variables — all hosts
+# Edit these values before running the playbook.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── User ─────────────────────────────────────────────────────────────────────
+new_user: "adminuser"                 # Name of the new non-root sudo user
+# Paste the contents of your public key (e.g. ~/.ssh/id_ed25519.pub)
+ssh_public_key: "ssh-ed25519 AAAA... your_email@example.com"
+
+# ── System ───────────────────────────────────────────────────────────────────
+server_hostname: "my-ubuntu-server"
+server_timezone: "UTC"                # e.g. America/New_York, Europe/Madrid
+
+# ── SSH ──────────────────────────────────────────────────────────────────────
+ssh_port: 22
+ssh_permit_root_login: "no"
+ssh_password_authentication: "no"
+ssh_max_auth_tries: 3
+ssh_login_grace_time: 30
+
+# ── Firewall ─────────────────────────────────────────────────────────────────
+ufw_rules:
+  - { rule: allow, port: "{{ ssh_port }}", proto: tcp, comment: "SSH" }
+  # Uncomment to open additional ports:
+  # - { rule: allow, port: "80",  proto: tcp, comment: "HTTP" }
+  # - { rule: allow, port: "443", proto: tcp, comment: "HTTPS" }
+
+# ── Fail2Ban ─────────────────────────────────────────────────────────────────
+fail2ban_bantime: 86400    # seconds (24 hours)
+fail2ban_findtime: 600     # seconds (10 minutes)
+fail2ban_maxretry: 3
+
+# ── Unattended Upgrades ───────────────────────────────────────────────────────
+unattended_automatic_reboot: "false"
+unattended_reboot_time: "02:00"

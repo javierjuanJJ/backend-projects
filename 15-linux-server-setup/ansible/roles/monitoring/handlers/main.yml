@@ -1,0 +1,7 @@
+---
+# roles/monitoring/handlers/main.yml
+
+- name: restart cron
+  ansible.builtin.systemd:
+    name: cron
+    state: restarted

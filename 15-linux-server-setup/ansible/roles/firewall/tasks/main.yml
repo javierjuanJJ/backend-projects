@@ -1,0 +1,51 @@
+---
+# roles/firewall/tasks/main.yml — UFW Firewall configuration
+
+- name: Install UFW
+  ansible.builtin.apt:
+    name: ufw
+    state: present
+  tags: firewall
+
+- name: Set UFW default incoming policy to deny
+  community.general.ufw:
+    direction: incoming
+    policy: deny
+  tags: firewall
+
+- name: Set UFW default outgoing policy to allow
+  community.general.ufw:
+    direction: outgoing
+    policy: allow
+  tags: firewall
+
+- name: Apply UFW rules from group_vars
+  community.general.ufw:
+    rule: "{{ item.rule }}"
+    port: "{{ item.port | string }}"
+    proto: "{{ item.proto }}"
+    comment: "{{ item.comment | default('') }}"
+  loop: "{{ ufw_rules }}"
+  tags: firewall
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+  tags: firewall
+
+- name: Verify UFW status
+  ansible.builtin.command: ufw status verbose
+  register: ufw_status_output
+  changed_when: false
+  tags: firewall
+
+- name: Display UFW status
+  ansible.builtin.debug:
+    var: ufw_status_output.stdout_lines
+  tags: firewall
+
+- name: Enable UFW service at boot
+  ansible.builtin.systemd:
+    name: ufw
+    enabled: true
+  tags: firewall

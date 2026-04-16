@@ -1,0 +1,62 @@
+---
+# =============================================================================
+# Ubuntu Server Initial Setup — Ansible Playbook
+# =============================================================================
+# Prerequisites:
+#   pip install ansible
+#   ansible-galaxy collection install community.general
+#
+# Run:
+#   ansible-playbook -i inventory.ini playbook.yml
+#   ansible-playbook -i inventory.ini playbook.yml --check   # dry-run
+#   ansible-playbook -i inventory.ini playbook.yml --tags user,ssh
+#
+# Available tags: user, ssh, firewall, updates, fail2ban, system, verify
+# =============================================================================
+
+- name: Ubuntu Server Initial Setup
+  hosts: ubuntu_servers
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Verify target is Ubuntu
+      ansible.builtin.assert:
+        that:
+          - ansible_distribution == "Ubuntu"
+        fail_msg: "This playbook only supports Ubuntu."
+        success_msg: "Ubuntu {{ ansible_distribution_version }} detected."
+
+    - name: Ensure Python3 is present
+      ansible.builtin.raw: apt-get install -y python3
+      changed_when: false
+
+  roles:
+    - role: common       # System updates & packages
+    - role: hardening    # User, SSH, Fail2Ban
+    - role: firewall     # UFW
+    - role: monitoring   # Timezone, hostname, verification
+
+# ─────────────────────────────────────────────────────────────────────────────
+# POST PLAY: print summary
+# ─────────────────────────────────────────────────────────────────────────────
+- name: Setup Summary
+  hosts: ubuntu_servers
+  gather_facts: false
+  tasks:
+    - name: Print completion banner
+      ansible.builtin.debug:
+        msg: |
+          ╔══════════════════════════════════════════════════════════╗
+          ║          Server setup completed successfully!            ║
+          ║                                                          ║
+          ║  Host     : {{ inventory_hostname }}
+          ║  New user : {{ new_user }}
+          ║  Hostname : {{ server_hostname }}
+          ║  Timezone : {{ server_timezone }}
+          ║                                                          ║
+          ║  Next steps:                                             ║
+          ║  1. Test SSH login:  ssh {{ new_user }}@<SERVER_IP>     ║
+          ║  2. Review checklist: /root/security_checklist.txt      ║
+          ║  3. Reboot the server when ready                        ║
+          ╚══════════════════════════════════════════════════════════╝

@@ -1,0 +1,76 @@
+---
+# roles/common/tasks/main.yml — System updates & essential packages
+
+- name: Update apt cache
+  ansible.builtin.apt:
+    update_cache: true
+    cache_valid_time: 3600
+  tags: updates
+
+- name: Upgrade all packages
+  ansible.builtin.apt:
+    upgrade: dist
+    autoremove: true
+    autoclean: true
+  tags: updates
+
+- name: Install essential packages
+  ansible.builtin.apt:
+    name:
+      - curl
+      - wget
+      - git
+      - vim
+      - htop
+      - unzip
+      - net-tools
+      - apt-transport-https
+      - ca-certificates
+      - software-properties-common
+      - unattended-upgrades
+      - apt-listchanges
+    state: present
+  tags: updates
+
+- name: Configure unattended-upgrades (50-local)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/50unattended-upgrades
+    content: |
+      Unattended-Upgrade::Allowed-Origins {
+          "${distro_id}:${distro_codename}-security";
+          "${distro_id}ESMApps:${distro_codename}-apps-security";
+          "${distro_id}ESM:${distro_codename}-infra-security";
+      };
+      Unattended-Upgrade::Package-Blacklist {};
+      Unattended-Upgrade::DevRelease "false";
+      Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+      Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+      Unattended-Upgrade::Remove-Unused-Dependencies "true";
+      Unattended-Upgrade::Automatic-Reboot "{{ unattended_automatic_reboot }}";
+      Unattended-Upgrade::Automatic-Reboot-Time "{{ unattended_reboot_time }}";
+      Unattended-Upgrade::Mail "";
+      Unattended-Upgrade::MailReport "only-on-error";
+    mode: "0644"
+    owner: root
+    group: root
+  tags: updates
+
+- name: Configure unattended-upgrades (20auto-upgrades)
+  ansible.builtin.copy:
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Download-Upgradeable-Packages "1";
+      APT::Periodic::AutocleanInterval "7";
+      APT::Periodic::Unattended-Upgrade "1";
+    mode: "0644"
+    owner: root
+    group: root
+  tags: updates
+
+- name: Enable and start unattended-upgrades service
+  ansible.builtin.systemd:
+    name: unattended-upgrades
+    state: started
+    enabled: true
+  tags: updates
