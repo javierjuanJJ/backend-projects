@@ -1,0 +1,147 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+model User {
+  id               String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email            String      @unique @db.VarChar(255)
+  passwordHash     String      @map("password_hash") @db.VarChar(255)
+  stripeCustomerId String?     @map("stripe_customer_id") @db.VarChar(255)
+  role             String      @default("customer") @db.VarChar(20)
+  createdAt        DateTime    @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt        DateTime    @updatedAt @map("updated_at") @db.Timestamptz
+
+  images    Image[]
+  cartItems CartItem[]
+  orders    Order[]
+
+  @@map("users")
+}
+
+// ─── Images ───────────────────────────────────────────────────────────────────
+model Image {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  filename  String   @db.VarChar(255)
+  url       String   @db.VarChar(500)
+  format    String   @db.VarChar(10)
+  width     Int
+  height    Int
+  size      Int      // bytes
+  blurhash  String?  @db.VarChar(100)
+  palette   Json?    // dominant colors array
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
+
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  transformations  ImageTransform[]
+
+  @@index([userId], name: "idx_images_user")
+  @@map("images")
+}
+
+// ─── Image Transformations ────────────────────────────────────────────────────
+model ImageTransform {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  imageId         String   @map("image_id") @db.Uuid
+  status          String   @default("pending") @db.VarChar(20) // pending | processing | done | failed
+  transformations Json     // the requested transform payload
+  outputUrl       String?  @map("output_url") @db.VarChar(500)
+  outputFilename  String?  @map("output_filename") @db.VarChar(255)
+  errorMessage    String?  @map("error_message")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz
+  completedAt     DateTime? @map("completed_at") @db.Timestamptz
+
+  image Image @relation(fields: [imageId], references: [id], onDelete: Cascade)
+
+  @@index([imageId], name: "idx_transforms_image")
+  @@map("image_transforms")
+}
+
+// ─── Categories ───────────────────────────────────────────────────────────────
+model Category {
+  id       String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name     String    @db.VarChar(100)
+  slug     String    @unique @db.VarChar(100)
+  products Product[]
+
+  @@map("categories")
+}
+
+// ─── Products ─────────────────────────────────────────────────────────────────
+model Product {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  categoryId      String?   @map("category_id") @db.Uuid
+  name            String    @db.VarChar(255)
+  slug            String    @unique @db.VarChar(255)
+  description     String?
+  priceCents      Int       @map("price_cents")
+  currency        String    @default("usd") @db.VarChar(3)
+  stock           Int       @default(0)
+  stripeProductId String?   @map("stripe_product_id") @db.VarChar(255)
+  stripePriceId   String?   @map("stripe_price_id") @db.VarChar(255)
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  category   Category?   @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  cartItems  CartItem[]
+  orderItems OrderItem[]
+
+  @@index([name], name: "idx_products_name")
+  @@index([categoryId], name: "idx_products_category")
+  @@map("products")
+}
+
+// ─── Cart ─────────────────────────────────────────────────────────────────────
+model CartItem {
+  userId    String   @map("user_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  quantity  Int
+  addedAt   DateTime @default(now()) @map("added_at") @db.Timestamptz
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@id([userId, productId])
+  @@map("cart_items")
+}
+
+// ─── Orders ───────────────────────────────────────────────────────────────────
+model Order {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId          String?   @map("user_id") @db.Uuid
+  stripeSessionId String?   @unique @map("stripe_session_id") @db.VarChar(255)
+  status          String    @default("pending") @db.VarChar(50) // pending | paid | cancelled
+  totalCents      Int       @map("total_cents")
+  shippingAddress Json?     @map("shipping_address")
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz
+
+  user       User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+  orderItems OrderItem[]
+
+  @@index([userId], name: "idx_orders_user")
+  @@index([stripeSessionId], name: "idx_orders_stripe_session")
+  @@map("orders")
+}
+
+// ─── Order Items ──────────────────────────────────────────────────────────────
+model OrderItem {
+  id              String  @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId         String  @map("order_id") @db.Uuid
+  productId       String? @map("product_id") @db.Uuid
+  quantity        Int
+  priceAtPurchase Int     @map("price_at_purchase")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@map("order_items")
+}
