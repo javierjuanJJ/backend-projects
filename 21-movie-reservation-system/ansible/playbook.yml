@@ -1,0 +1,214 @@
+---
+# ============================================================
+# Movie Reservation API — Ansible Playbook para Cubepath
+# ============================================================
+# Uso:
+#   ansible-playbook -i inventory.ini playbook.yml
+#   ansible-playbook -i inventory.ini playbook.yml --tags deploy
+#   ansible-playbook -i inventory.ini playbook.yml --tags rollback
+# ============================================================
+
+- name: Deploy Movie Reservation API to Cubepath
+  hosts: cubepath
+  become: true
+  vars_files:
+    - vars.yml
+
+  vars:
+    app_name: movie-reservation-api
+    app_dir: /opt/{{ app_name }}
+    docker_compose_file: "{{ app_dir }}/docker-compose.prod.yml"
+    ghcr_registry: ghcr.io
+
+  tasks:
+
+    # ----------------------------------------------------------
+    # PREPARACIÓN DEL SERVIDOR
+    # ----------------------------------------------------------
+    - name: Install required packages
+      tags: [setup]
+      apt:
+        name:
+          - docker.io
+          - docker-compose-plugin
+          - curl
+          - git
+        state: present
+        update_cache: true
+
+    - name: Ensure Docker service is running
+      tags: [setup]
+      systemd:
+        name: docker
+        state: started
+        enabled: true
+
+    - name: Create application directory
+      tags: [setup, deploy]
+      file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: root
+        group: docker
+        mode: "0750"
+
+    - name: Create uploads directory
+      tags: [setup]
+      file:
+        path: "{{ app_dir }}/uploads"
+        state: directory
+        mode: "0755"
+
+    # ----------------------------------------------------------
+    # CONFIGURACIÓN DE VARIABLES DE ENTORNO
+    # ----------------------------------------------------------
+    - name: Deploy .env file
+      tags: [deploy, config]
+      template:
+        src: templates/.env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: root
+        mode: "0600"
+      notify: Restart API
+
+    # ----------------------------------------------------------
+    # DOCKER COMPOSE DE PRODUCCIÓN
+    # ----------------------------------------------------------
+    - name: Deploy docker-compose.prod.yml
+      tags: [deploy]
+      template:
+        src: templates/docker-compose.prod.j2
+        dest: "{{ docker_compose_file }}"
+        owner: root
+        mode: "0644"
+
+    # ----------------------------------------------------------
+    # PULL DE LA IMAGEN
+    # ----------------------------------------------------------
+    - name: Log in to GitHub Container Registry
+      tags: [deploy]
+      community.docker.docker_login:
+        registry_url: "{{ ghcr_registry }}"
+        username: "{{ ghcr_username }}"
+        password: "{{ ghcr_token }}"
+
+    - name: Pull latest Docker image
+      tags: [deploy]
+      community.docker.docker_image:
+        name: "{{ image_tag }}"
+        source: pull
+        force_source: true
+
+    # ----------------------------------------------------------
+    # BACKUP ANTES DEL DEPLOY
+    # ----------------------------------------------------------
+    - name: Create DB backup before deploy
+      tags: [deploy]
+      shell: |
+        docker exec movie_db mysqldump \
+          -u movie_user -pmovie_pass movie_reservation_db \
+          > {{ app_dir }}/backup_$(date +%Y%m%d_%H%M%S).sql
+      ignore_errors: true
+
+    # ----------------------------------------------------------
+    # DESPLIEGUE
+    # ----------------------------------------------------------
+    - name: Run Prisma migrations
+      tags: [deploy, migrate]
+      shell: |
+        docker run --rm \
+          --env-file {{ app_dir }}/.env \
+          --network movie_network \
+          {{ image_tag }} \
+          pnpm prisma migrate deploy
+      register: migration_result
+      changed_when: "'Applied' in migration_result.stdout"
+
+    - name: Start/update services with Docker Compose
+      tags: [deploy]
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        files:
+          - "{{ docker_compose_file }}"
+        pull: always
+        state: present
+        recreate: auto
+
+    # ----------------------------------------------------------
+    # HEALTH CHECK
+    # ----------------------------------------------------------
+    - name: Wait for API to be healthy
+      tags: [deploy]
+      uri:
+        url: "http://localhost:{{ port | default(3000) }}/api/health"
+        method: GET
+        status_code: 200
+        timeout: 10
+      register: health_result
+      until: health_result.status == 200
+      retries: 10
+      delay: 5
+
+    - name: Confirm deployment
+      tags: [deploy]
+      debug:
+        msg: "✅ Deployment successful — {{ image_tag }}"
+
+    # ----------------------------------------------------------
+    # ROLLBACK (uso manual)
+    # ----------------------------------------------------------
+    - name: Rollback to previous image
+      tags: [rollback]
+      block:
+        - name: Get previous image tag
+          shell: |
+            docker images {{ ghcr_registry }}/*/movie-reservation \
+              --format "{{ '{{' }}.Tag{{ '}}' }}" | sed -n '2p'
+          register: prev_tag
+
+        - name: Update compose with previous tag
+          lineinfile:
+            path: "{{ docker_compose_file }}"
+            regexp: "image:.*"
+            line: "    image: {{ ghcr_registry }}/{{ github_repo }}:{{ prev_tag.stdout }}"
+
+        - name: Restart with previous image
+          community.docker.docker_compose_v2:
+            project_src: "{{ app_dir }}"
+            files:
+              - "{{ docker_compose_file }}"
+            state: present
+            recreate: always
+
+        - name: Rollback health check
+          uri:
+            url: "http://localhost:{{ port | default(3000) }}/api/health"
+            status_code: 200
+          retries: 5
+          delay: 5
+
+    # ----------------------------------------------------------
+    # LIMPIEZA
+    # ----------------------------------------------------------
+    - name: Remove old Docker images
+      tags: [cleanup]
+      shell: docker image prune -f --filter "until=24h"
+      changed_when: false
+
+    - name: Remove old DB backups (keep last 5)
+      tags: [cleanup]
+      shell: |
+        ls -t {{ app_dir }}/backup_*.sql 2>/dev/null | tail -n +6 | xargs rm -f
+      changed_when: false
+
+  # ----------------------------------------------------------
+  # HANDLERS
+  # ----------------------------------------------------------
+  handlers:
+    - name: Restart API
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        files:
+          - "{{ docker_compose_file }}"
+        state: present
+        recreate: always

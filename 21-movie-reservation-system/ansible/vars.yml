@@ -1,0 +1,47 @@
+# ============================================================
+# ansible/vars.yml — Variables para el playbook
+# Copia como vars_local.yml y adapta para desarrollo local
+# En CI/CD las vars se inyectan desde GitHub Secrets
+# ============================================================
+
+# Imagen Docker a desplegar
+image_tag: ghcr.io/tu-usuario/movie-reservation:latest
+
+# GitHub Container Registry
+ghcr_registry: ghcr.io
+ghcr_username: tu-usuario-github
+ghcr_token: "{{ lookup('env', 'GHCR_TOKEN') }}"
+github_repo: tu-usuario/movie-reservation
+
+# App
+port: 3000
+app_env: production
+
+# Base de datos
+database_url: "mysql://movie_user:CAMBIA_ESTO@db:3306/movie_reservation_db"
+
+# JWT
+jwt_access_secret: "CAMBIA_ESTE_SECRETO_ACCESS"
+jwt_refresh_secret: "CAMBIA_ESTE_SECRETO_REFRESH"
+jwt_access_expires_in: "15m"
+jwt_refresh_expires_in: "7d"
+
+# SendGrid
+sendgrid_api_key: "SG.XXXXX"
+sendgrid_from_email: "noreply@cinema.com"
+sendgrid_from_name: "Cinema Reservations"
+
+# Stripe
+stripe_secret_key: "sk_live_XXXXX"
+stripe_webhook_secret: "whsec_XXXXX"
+
+# Twilio
+twilio_account_sid: "ACXXXXX"
+twilio_auth_token: "XXXXX"
+twilio_whatsapp_from: "whatsapp:+14155238886"
+
+# Redis
+redis_url: "redis://redis:6379"
+
+# CORS
+cors_allowed_origins: "https://tu-frontend.com"

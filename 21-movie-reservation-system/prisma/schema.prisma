@@ -1,0 +1,125 @@
+// prisma/schema.prisma
+// Movie Reservation System — Database Schema
+// ORM: Prisma | Database: MySQL 8.0
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// ENUMS
+// ============================================================
+
+enum Role {
+  admin
+  user
+}
+
+enum ReservationStatus {
+  confirmed
+  cancelled
+}
+
+// ============================================================
+// MODELS
+// ============================================================
+
+model Genre {
+  id     String  @id @default(cuid())
+  name   String  @unique @db.VarChar(50)
+  movies Movie[]
+
+  @@map("genres")
+}
+
+model User {
+  id           String        @id @default(cuid())
+  username     String        @unique @db.VarChar(50)
+  email        String        @unique @db.VarChar(100)
+  password     String        @db.VarChar(255)
+  role         Role          @default(user)
+  createdAt    DateTime      @default(now()) @map("created_at")
+  reservations Reservation[]
+
+  @@map("users")
+}
+
+model Movie {
+  id              String     @id @default(cuid())
+  title           String     @db.VarChar(150)
+  description     String?    @db.Text
+  posterUrl       String?    @db.VarChar(255) @map("poster_url")
+  durationMinutes Int?       @map("duration_minutes")
+  deletedAt       DateTime?  @map("deleted_at")
+  genre           Genre?     @relation(fields: [genreId], references: [id], onDelete: SetNull)
+  genreId         String?    @map("genre_id")
+  showtimes       Showtime[]
+
+  @@map("movies")
+}
+
+model Room {
+  id            String     @id @default(cuid())
+  name          String     @db.VarChar(50)
+  totalCapacity Int        @map("total_capacity")
+  seats         Seat[]
+  showtimes     Showtime[]
+
+  @@map("rooms")
+}
+
+model Seat {
+  id               String            @id @default(cuid())
+  rowLabel         String            @db.VarChar(5) @map("row_label")
+  seatNumber       Int               @map("seat_number")
+  room             Room              @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId           String            @map("room_id")
+  reservationSeats ReservationSeat[]
+
+  @@unique([roomId, rowLabel, seatNumber])
+  @@map("seats")
+}
+
+model Showtime {
+  id           String        @id @default(cuid())
+  startTime    DateTime      @map("start_time")
+  price        Decimal       @db.Decimal(10, 2)
+  movie        Movie         @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  movieId      String        @map("movie_id")
+  room         Room          @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  roomId       String        @map("room_id")
+  reservations Reservation[]
+
+  @@map("showtimes")
+}
+
+model Reservation {
+  id              String            @id @default(cuid())
+  reservationDate DateTime          @default(now()) @map("reservation_date")
+  status          ReservationStatus @default(confirmed)
+  totalPrice      Decimal?          @db.Decimal(10, 2) @map("total_price")
+  stripePaymentId String?           @db.VarChar(255) @map("stripe_payment_id")
+  user            User              @relation(fields: [userId], references: [id])
+  userId          String            @map("user_id")
+  showtime        Showtime          @relation(fields: [showtimeId], references: [id])
+  showtimeId      String            @map("showtime_id")
+  seats           ReservationSeat[]
+
+  @@map("reservations")
+}
+
+model ReservationSeat {
+  id            String      @id @default(cuid())
+  reservation   Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+  reservationId String      @map("reservation_id")
+  seat          Seat        @relation(fields: [seatId], references: [id])
+  seatId        String      @map("seat_id")
+
+  @@unique([reservationId, seatId])
+  @@map("reservation_seats")
+}

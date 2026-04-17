@@ -1,0 +1,118 @@
+version: "3.9"
+
+# ============================================================
+# Movie Reservation System — Docker Compose
+# ============================================================
+
+services:
+  # ----------------------------------------------------------
+  # Base de datos MySQL
+  # ----------------------------------------------------------
+  db:
+    image: mysql:8.0
+    container_name: movie_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root_secret
+      MYSQL_DATABASE: movie_reservation_db
+      MYSQL_USER: movie_user
+      MYSQL_PASSWORD: movie_pass
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-umovie_user", "-pmovie_pass"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - movie_network
+
+  # ----------------------------------------------------------
+  # Redis (caché de horarios, sesiones)
+  # ----------------------------------------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: movie_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - movie_network
+
+  # ----------------------------------------------------------
+  # API Next.js + Express
+  # ----------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: movie_api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: mysql://movie_user:movie_pass@db:3306/movie_reservation_db
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    ports:
+      - "${PORT:-3000}:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # Montar uploads si fuera necesario
+      - ./uploads:/app/uploads
+    networks:
+      - movie_network
+
+  # ----------------------------------------------------------
+  # Prisma Studio (solo en desarrollo)
+  # ----------------------------------------------------------
+  prisma-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: movie_prisma_studio
+    command: pnpm prisma studio --port 5555
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: mysql://movie_user:movie_pass@db:3306/movie_reservation_db
+    ports:
+      - "5555:5555"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - movie_network
+    profiles:
+      - dev
+
+# ----------------------------------------------------------
+# Volúmenes persistentes
+# ----------------------------------------------------------
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+# ----------------------------------------------------------
+# Red interna
+# ----------------------------------------------------------
+networks:
+  movie_network:
+    driver: bridge
