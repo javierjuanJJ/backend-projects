@@ -1,0 +1,17 @@
+{
+  "name": "caching-proxy",
+  "version": "1.0.0",
+  "description": "Caching proxy con http-proxy, TTL y borrado selectivo",
+  "main": "proxy-server.js",
+  "scripts": {
+    "start": "node proxy-server.js",
+    "dev":   "nodemon proxy-server.js"
+  },
+  "dependencies": {
+    "http-proxy": "^1.18.1"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.0"
+  },
+  "engines": { "node": ">=20" }
+}
