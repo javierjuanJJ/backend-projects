@@ -1,0 +1,13 @@
+---
+# ansible/inventory.yml
+# Edit with your actual Cubepath server IP / hostname
+
+all:
+  children:
+    app:
+      hosts:
+        cubepath-prod:
+          ansible_host: YOUR_SERVER_IP
+          ansible_user: ubuntu
+          ansible_ssh_private_key_file: ~/.ssh/cubepath_key
+          ansible_python_interpreter: /usr/bin/python3

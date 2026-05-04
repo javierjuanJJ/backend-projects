@@ -1,0 +1,91 @@
+---
+# Ansible Playbook: Deploy Leaderboard API to Cubepath
+# Usage: ansible-playbook ansible/deploy.yml -i ansible/inventory.yml --vault-password-file .vault-pass
+# Requirements: ansible >= 2.14, community.docker collection
+
+- name: Deploy Leaderboard API
+  hosts: app
+  become: true
+  vars:
+    app_name: leaderboard-api
+    image_name: "ghcr.io/{{ lookup('env', 'GITHUB_REPOSITORY') | lower }}"
+    image_tag: "{{ lookup('env', 'IMAGE_TAG') | default('latest') }}"
+    app_port: 3000
+    app_dir: /opt/leaderboard-api
+
+  vars_files:
+    - vars/secrets.yml   # ansible-vault encrypted
+
+  tasks:
+    - name: Ensure app directory exists
+      ansible.builtin.file:
+        path: "{{ app_dir }}"
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: '0755'
+
+    - name: Copy docker-compose to server
+      ansible.builtin.copy:
+        src: ../docker-compose.yml
+        dest: "{{ app_dir }}/docker-compose.yml"
+        owner: www-data
+        mode: '0644'
+
+    - name: Write environment file from vault secrets
+      ansible.builtin.template:
+        src: templates/env.j2
+        dest: "{{ app_dir }}/.env"
+        owner: root
+        group: root
+        mode: '0600'
+
+    - name: Log in to GitHub Container Registry
+      community.docker.docker_login:
+        registry_url: ghcr.io
+        username: "{{ ghcr_username }}"
+        password: "{{ ghcr_token }}"
+
+    - name: Pull latest Docker image
+      community.docker.docker_image:
+        name: "{{ image_name }}:{{ image_tag }}"
+        source: pull
+        force_source: true
+
+    - name: Run Prisma migrations
+      community.docker.docker_container:
+        name: leaderboard-migrate
+        image: "{{ image_name }}:{{ image_tag }}"
+        command: pnpm prisma migrate deploy
+        env_file: "{{ app_dir }}/.env"
+        networks:
+          - name: leaderboard-net
+        auto_remove: true
+        detach: false
+      register: migration_result
+
+    - name: Fail if migrations failed
+      ansible.builtin.fail:
+        msg: "Prisma migrations failed: {{ migration_result }}"
+      when: migration_result.failed
+
+    - name: Restart app container
+      community.docker.docker_compose_v2:
+        project_src: "{{ app_dir }}"
+        state: present
+        pull: always
+        recreate: always
+
+    - name: Wait for health check to pass
+      ansible.builtin.uri:
+        url: "http://localhost:{{ app_port }}/health"
+        method: GET
+        status_code: 200
+      register: health_check
+      retries: 10
+      delay: 5
+      until: health_check.status == 200
+
+    - name: Print deployment success
+      ansible.builtin.debug:
+        msg: "✅ {{ app_name }} deployed successfully. Image: {{ image_name }}:{{ image_tag }}"

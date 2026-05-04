@@ -1,0 +1,55 @@
+// prisma/schema.prisma
+// Docs: https://www.prisma.io/docs/reference/prisma-schema-reference
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Users ───────────────────────────────────────────────────────────────────
+model User {
+  id            String   @id @default(uuid()) @db.Char(36)
+  username      String   @unique @db.VarChar(50)
+  email         String   @unique @db.VarChar(255)
+  password_hash String   @db.VarChar(255)
+  created_at    DateTime @default(now())
+
+  scores Score[]
+
+  @@map("users")
+}
+
+// ─── Games ───────────────────────────────────────────────────────────────────
+model Game {
+  id          String   @id @default(uuid()) @db.Char(36)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  created_at  DateTime @default(now())
+
+  scores Score[]
+
+  @@map("games")
+}
+
+// ─── Scores (historical log) ──────────────────────────────────────────────────
+// Allows weekly / all-time leaderboard reports.
+// idx_score_date mirrors the original MySQL index for period filtering.
+model Score {
+  id          String   @id @default(uuid()) @db.Char(36)
+  user_id     String   @db.Char(36)
+  game_id     String   @db.Char(36)
+  score_value Int
+  achieved_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  game Game @relation(fields: [game_id], references: [id], onDelete: Cascade)
+
+  @@index([achieved_at], name: "idx_score_date")
+  @@index([game_id, score_value(sort: Desc)], name: "idx_game_score")
+  @@index([user_id, game_id], name: "idx_user_game")
+  @@map("scores")
+}

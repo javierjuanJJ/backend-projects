@@ -1,0 +1,106 @@
+version: '3.9'
+
+services:
+  # ─── Application ───────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: runner
+    container_name: leaderboard-api
+    restart: unless-stopped
+    ports:
+      - '${PORT:-3000}:3000'
+    environment:
+      NODE_ENV: ${NODE_ENV:-development}
+      PORT: 3000
+      DATABASE_URL: mysql://${MYSQL_USER:-leaderboard}:${MYSQL_PASSWORD:-leaderboard}@mysql:3306/${MYSQL_DATABASE:-leaderboard_system}
+      REDIS_URL: redis://redis:6379
+      JWT_SECRET: ${JWT_SECRET}
+      ACCEPTED_ORIGINS: ${ACCEPTED_ORIGINS:-http://localhost:3000,http://localhost:5173}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ['CMD', 'curl', '-f', 'http://localhost:3000/health']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    networks:
+      - leaderboard-net
+
+  # ─── MySQL 8 ───────────────────────────────────────────────
+  mysql:
+    image: mysql:8.0
+    container_name: leaderboard-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-leaderboard_system}
+      MYSQL_USER: ${MYSQL_USER:-leaderboard}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-leaderboard}
+    ports:
+      - '${MYSQL_PORT:-3306}:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./prisma/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-u', 'root', '-p${MYSQL_ROOT_PASSWORD:-rootpassword}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - leaderboard-net
+
+  # ─── Redis 7 ───────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: leaderboard-redis
+    restart: unless-stopped
+    command: redis-server --requirepass ${REDIS_PASSWORD:-} --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - leaderboard-net
+
+  # ─── Prisma Studio (dev only) ──────────────────────────────
+  prisma-studio:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: leaderboard-prisma-studio
+    restart: unless-stopped
+    command: pnpm prisma studio --port 5555 --browser none
+    ports:
+      - '5555:5555'
+    environment:
+      DATABASE_URL: mysql://${MYSQL_USER:-leaderboard}:${MYSQL_PASSWORD:-leaderboard}@mysql:3306/${MYSQL_DATABASE:-leaderboard_system}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    profiles:
+      - dev
+    networks:
+      - leaderboard-net
+
+volumes:
+  mysql_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  leaderboard-net:
+    driver: bridge

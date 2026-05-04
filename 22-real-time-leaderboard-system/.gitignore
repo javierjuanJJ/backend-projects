@@ -1,0 +1,64 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Environment ──────────────────────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+.env.test
+# Keep .env.example tracked
+!.env.example
+
+# ─── Build outputs ────────────────────────────────────────────────────────────
+.next/
+out/
+dist/
+build/
+
+# ─── Prisma ───────────────────────────────────────────────────────────────────
+# Generated client — regenerated via `prisma generate`
+node_modules/.prisma/
+# Keep migrations tracked
+!prisma/migrations/
+
+# ─── Tests & coverage ─────────────────────────────────────────────────────────
+coverage/
+.vitest-cache/
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+logs/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# ─── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+
+# ─── IDE ──────────────────────────────────────────────────────────────────────
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ─── Ansible ──────────────────────────────────────────────────────────────────
+# Vault password file — NEVER commit
+.vault-pass
+ansible/vars/secrets.yml
+# Keep the example tracked
+!ansible/vars/secrets.yml.example
+
+# ─── Docker ───────────────────────────────────────────────────────────────────
+# Local override compose (dev tweaks)
+docker-compose.override.yml
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.pem
+*.key
+*.p12
