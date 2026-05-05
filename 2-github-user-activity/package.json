@@ -1,13 +1,19 @@
 {
-  "name": "2-github-user-activity",
+  "name": "github-activity-cli",
   "version": "1.0.0",
-  "main": "index.js",
+  "description": "CLI para consultar la actividad pública de un usuario de GitHub.",
   "type": "module",
+  "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "test:watch": "node --experimental-vm-modules node_modules/.bin/jest --watch",
+    "test:coverage": "node --experimental-vm-modules node_modules/.bin/jest --coverage"
   },
-  "keywords": [],
-  "author": "",
-  "license": "ISC",
-  "description": ""
+  "devDependencies": {
+    "jest": "^29.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }
